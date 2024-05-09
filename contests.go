@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -unnamed=ContestEffect,SuperContestEffect -- $GOFILE ContestType ContestEffect SuperContestEffect
-
 type ContestName struct {
 	Name     string                     `json:"name"`
 	Color    string                     `json:"color"` // The color associated with this contest's name.

@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE Item ItemAttribute ItemCategory ItemFlingEffect ItemPocket
-
 type ItemSprites struct {
 	Default string `json:"default"`
 }

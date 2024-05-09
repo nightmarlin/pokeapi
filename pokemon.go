@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-//go:generate go run cmd/gettergen/gettergen.go -unnamed=Characteristic -- $GOFILE Ability Characteristic EggGroup Gender GrowthRate Nature PokeathlonStat Pokemon PokemonColor PokemonForm PokemonHabitat PokemonShape PokemonSpecies Stat Type
-
 type AbilityEffectChange struct {
 	EffectEntries []Effect                       `json:"effect_entries"`
 	VersionGroup  NamedAPIResource[VersionGroup] `json:"version_group"`

@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -unnamed=Machine -- $GOFILE Machine Move MoveAilment MoveBattleStyle MoveCategory MoveDamageClass MoveLearnMethod MoveTarget
-
 type Machine struct {
 	Identifier
 

@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE Generation Pokedex Version VersionGroup
-
 type Generation struct {
 	NamedIdentifier
 

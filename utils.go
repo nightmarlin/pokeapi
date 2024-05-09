@@ -7,8 +7,8 @@ import (
 //go:generate go run cmd/gettergen/gettergen.go -- "$GOFILE" "Language"
 
 type Language struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
+	NamedIdentifier
+
 	Official bool   `json:"official"`
 	IS369    string `json:"is_369"`
 	IS3166   string `json:"is_3166"`

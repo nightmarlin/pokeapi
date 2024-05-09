@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -unnamed=EvolutionChain -- $GOFILE EvolutionChain EvolutionTrigger
-
 type EvolutionDetail struct {
 	Item                  *NamedAPIResource[Item]            `json:"item"`
 	Trigger               NamedAPIResource[EvolutionTrigger] `json:"trigger"`

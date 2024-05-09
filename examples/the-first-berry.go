@@ -1,3 +1,6 @@
+// Command the-first-berry provides a quick example of how the pokeapi.Client
+// is created and used, and the benefit of using a pokeapi.Cache to cache
+// results!
 package main
 
 import (

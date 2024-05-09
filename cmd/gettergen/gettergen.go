@@ -1,96 +1,138 @@
-// Command gettergen generates a Get* and List* method for the specified client
-// type into the file `<src-file>-getters.gen.go`
+// Command gettergen parses the pokeapi package and generates List* and  Get*
+// methods for the pokeapi.Client on types with the pokeapi.Identifier and
+// pokeapi.NamedIdentifier directly embedded into them.
 //
 // Usage:
 //
-//	gettergen [-unnamed=name,...] <types...>
+//	gettergen path/to/file/in/package.go
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"log/slog"
+	"go/types"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"text/template"
+
+	"golang.org/x/tools/go/packages"
 )
-
-/*
-TODO: use the Identifier / NamedIdentifier types to identify & generate
- resources from an entire package definition, then output to a single file:
-
-type MyResource struct {
-	Identifier
-
-	// ...
-}
-
-should generate an unnamed get/list pair
-
-type MyResource struct {
-	NamedIdentifier
-
-	// ...
-}
-
-should generate a named get/list pair
-*/
-
-var (
-	unnamedFlag = flag.String("unnamed", "", `set if the get api only accepts ids`)
-)
-
-func usage() {
-	_, _ = fmt.Fprintf(
-		os.Stderr,
-		`usage: gettergen [-unnamed=type,...] <file> <type...>`,
-	)
-	flag.PrintDefaults()
-}
-
-func parseUnnamedResources() map[string]struct{} {
-	res := make(map[string]struct{})
-	defs := *unnamedFlag
-	if len(defs) == 0 {
-		return nil
-	}
-
-	for _, s := range strings.Split(*unnamedFlag, ",") {
-		res[s] = struct{}{}
-	}
-	return res
-}
-
-func outFileName(srcFile string) string {
-	return fmt.Sprintf(
-		"%s-getters.gen.go",
-		strings.TrimSuffix(srcFile, ".go"),
-	)
-}
 
 func main() {
-	flag.Usage = usage
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer cancel()
 	flag.Parse()
-	args := flag.Args()
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if len(flag.Args()) != 1 {
+		_, _ = fmt.Fprintf(os.Stderr, "one arg (package path) is required, got args: %v\n", flag.Args())
+		os.Exit(1)
+	}
 
-	if err := run(args); err != nil {
-		log.Error(err.Error())
-		flag.Usage()
+	packageDir := filepath.Dir(os.Args[1])
+
+	if err := run(ctx, packageDir); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
 	}
 }
 
-func run(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("at least 2 arguments are required")
+const (
+	unnamedIdentifierTypeName = `Identifier`
+	namedIdentifierTypeName   = `NamedIdentifier`
+)
+
+var (
+	embedExclusions = map[string]struct{}{
+		`NamedIdentifier`: {}, // Embeds Identifier, but is not a Resource
 	}
-	typesToGen := args[1:]
+)
 
-	unnamed := parseUnnamedResources()
+func outFileName(dir string) string {
+	return filepath.Join(dir, "getters.gen.go")
+}
 
-	f, err := os.Create(outFileName(args[0]))
+func run(ctx context.Context, packageDir string) error {
+	resourceDefinitions, err := loadResourceNames(ctx, packageDir)
+	if err != nil {
+		return fmt.Errorf("loading resource names: %w", err)
+	}
+
+	if err := generateFile(outFileName(packageDir), resourceDefinitions); err != nil {
+		return fmt.Errorf("generating file: %w", err)
+	}
+
+	return nil
+}
+
+type resourceDefinition struct {
+	resourceName      string
+	isUnnamedResource bool
+}
+
+func loadResourceNames(
+	ctx context.Context,
+	dir string,
+) ([]resourceDefinition, error) {
+	pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedTypes, Context: ctx}, dir)
+	if err != nil {
+		return nil, fmt.Errorf("loading package: %w", err)
+	} else if len(pkgs) != 1 {
+		return nil, fmt.Errorf("only expected to load 1 package directory, got %d", len(pkgs))
+	}
+
+	ts := pkgs[0].Types.Scope()
+	var definitions []resourceDefinition
+
+	for _, objName := range ts.Names() {
+		if _, excluded := embedExclusions[objName]; excluded {
+			continue
+		}
+		obj := ts.Lookup(objName)
+
+		t := obj.Type()
+		n, isNamed := t.(*types.Named)
+		if !isNamed {
+			continue
+		}
+
+		s, isStruct := n.Underlying().(*types.Struct)
+		if !isStruct {
+			continue
+		}
+
+		for i := range s.NumFields() {
+			f := s.Field(i)
+
+			if !f.Embedded() {
+				continue
+			}
+
+			fieldName := f.Name()
+			switch fieldName {
+			case unnamedIdentifierTypeName:
+				definitions = append(
+					definitions,
+					resourceDefinition{resourceName: objName, isUnnamedResource: true},
+				)
+			case namedIdentifierTypeName:
+				definitions = append(
+					definitions,
+					resourceDefinition{resourceName: objName, isUnnamedResource: false},
+				)
+			}
+		}
+
+	}
+
+	return definitions, nil
+}
+
+func generateFile(path string, resourceDefinitions []resourceDefinition) error {
+	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("opening file: %w", err)
 	}
@@ -100,20 +142,9 @@ func run(args []string) error {
 		return fmt.Errorf("writing prelude: %w", err)
 	}
 
-	for _, typeName := range typesToGen {
-		_, isUnnamed := unnamed[typeName]
-
-		tArgs := getterTemplateArgs{
-			Name:      typeName,
-			Plural:    pluralise(typeName),
-			Unnamed:   isUnnamed,
-			PageType:  pageType(typeName, isUnnamed),
-			IdentName: identName(isUnnamed),
-			KebabCase: skewer(typeName),
-		}
-
-		if err := getterTemplate.Execute(f, tArgs); err != nil {
-			return fmt.Errorf("executing template for %q: %w", typeName, err)
+	for _, rd := range resourceDefinitions {
+		if err := resourceTemplate.Execute(f, rd.toTemplateArgs()); err != nil {
+			return fmt.Errorf("executing template for %q: %w", rd.resourceName, err)
 		}
 	}
 
@@ -147,11 +178,10 @@ func pageType(name string, isUnnamed bool) string {
 // identName generates the identifier param name in Get* methods. For unnamed
 // resources that only accept IDs, it returns "id" - otherwise, "ident".
 func identName(isUnnamed bool) string {
-	suffix := "ent"
 	if isUnnamed {
-		suffix = ""
+		return "id"
 	}
-	return fmt.Sprintf("id%s", suffix)
+	return "ident"
 }
 
 var skewerRegexp = regexp.MustCompile(`([a-z])([A-Z])`)
@@ -161,6 +191,30 @@ func skewer(name string) string {
 	return strings.ToLower(skewerRegexp.ReplaceAllString(name, `$1-$2`))
 }
 
+var (
+	resourceTemplate = template.Must(template.New("resource").Parse(resourceTemplateString))
+)
+
+func (rd resourceDefinition) toTemplateArgs() resourceTemplateArgs {
+	return resourceTemplateArgs{
+		Name:      rd.resourceName,
+		Plural:    pluralise(rd.resourceName),
+		IsUnnamed: rd.isUnnamedResource,
+		IdentName: identName(rd.isUnnamedResource),
+		KebabCase: skewer(rd.resourceName),
+		PageType:  pageType(rd.resourceName, rd.isUnnamedResource),
+	}
+}
+
+type resourceTemplateArgs struct {
+	Name      string
+	Plural    string
+	IsUnnamed bool
+	IdentName string
+	KebabCase string
+	PageType  string
+}
+
 const prelude = `// Code generated by github.com/nightmarlin/pokeapi/cmd/gettergen@v0"; DO NOT EDIT.
 
 package pokeapi
@@ -168,21 +222,9 @@ package pokeapi
 import "context"
 `
 
-var getterTemplate = template.Must(template.New("getter-template").Parse(getterTemplateStr))
-
-type getterTemplateArgs struct {
-	Name    string // the name of the type to generate
-	Plural  string // the plural form of the type name
-	Unnamed bool   // whether the List endpoint for the type returns unnamed api resources
-
-	PageType  string
-	IdentName string
-	KebabCase string
-}
-
-const getterTemplateStr = `
+const resourceTemplateString = `
 const {{.Name}}Resource Resource = "{{.KebabCase}}"
-{{ if .Unnamed }}
+{{ if .IsUnnamed }}
 // Get{{ .Name }} only accepts the ID of the desired {{ .Name }}.{{ end }}
 func (c *Client) Get{{ .Name }}(ctx context.Context, {{ .IdentName }} string) (*{{ .Name }}, error) {
 	return do[*{{ .Name }}](ctx, c, c.getURL({{ .Name }}Resource, {{ .IdentName }}), nil)

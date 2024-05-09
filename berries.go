@@ -4,8 +4,6 @@ import (
 	"time"
 )
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE Berry BerryFirmness BerryFlavor
-
 type BerryFlavorMap struct {
 	Potency int                           `json:"potency"`
 	Flavor  NamedAPIResource[BerryFlavor] `json:"flavor"`

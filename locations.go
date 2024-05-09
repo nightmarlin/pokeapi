@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE Location LocationArea PalParkArea Region
-
 type Location struct {
 	NamedIdentifier
 

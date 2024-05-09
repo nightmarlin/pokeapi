@@ -1,7 +1,5 @@
 package pokeapi
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE EncounterMethod EncounterCondition EncounterConditionValue
-
 type Encounter struct {
 	MinLevel        int                                         `json:"min_level"`
 	MaxLevel        int                                         `json:"max_level"`

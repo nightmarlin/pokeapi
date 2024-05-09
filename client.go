@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// TODO: //go:generate go run cmd/gettergen/gettergen.go -- .
+//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE
 
 // The DefaultPokeAPIRoot is the standard URL for PokéAPI. An alternative URL
 // can be provided via [NewClientOpts.PokeAPIRoot] for use with alternative
