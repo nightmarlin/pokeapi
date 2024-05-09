@@ -20,19 +20,19 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println("retrieved", berries.Count, "results")
+	fmt.Println("there are", berries.Count, "known berries")
 
 	firstBerry, err := berries.Results[0].Get(ctx, c)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("the first berry is:", firstBerry.Name)
+	fmt.Println("the first berry is the", firstBerry.Name, "berry")
 
-	alsoTheFirstBerry, err := c.GetBerry(ctx, firstBerry.Ident())
+	item, err := firstBerry.Item.Get(ctx, c)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("no, really, it's", alsoTheFirstBerry.Name)
+	fmt.Println("and it goes in the", item.Category.Name, "pocket")
 }
