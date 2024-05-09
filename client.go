@@ -12,10 +12,10 @@ import (
 
 // TODO: //go:generate go run cmd/gettergen/gettergen.go -- .
 
-type Cache interface {
-	Cache(url string, val any)
-	Lookup(url string) (val any, ok bool)
-}
+// The DefaultPokeAPIRoot is the standard URL for PokéAPI. An alternative URL
+// can be provided via [NewClientOpts.PokeAPIRoot] for use with alternative
+// builds of the API.
+const DefaultPokeAPIRoot = `https://pokeapi.co/api/v2`
 
 // The Client wraps a http.Client and a Cache to perform requests to PokéAPI.
 //
@@ -25,8 +25,6 @@ type Cache interface {
 // All methods of the form `List*` will return the first Page of results, and
 // accept an optional ListOptions parameter to permit you to start iteration
 // wherever you like. This parameter may always be nil.
-//
-// For any resource returned by the API,
 type Client struct {
 	client      *http.Client
 	cache       Cache
@@ -34,20 +32,40 @@ type Client struct {
 }
 
 type NewClientOpts struct {
-	HTTPClient  *http.Client
-	Cache       Cache
-	PokeAPIRoot string
+	HTTPClient  *http.Client // Set the HTTP client to use when making requests.
+	Cache       Cache        // Provide a Cache for use in requests.
+	PokeAPIRoot string       // Change the base PokéAPI URL to make requests to.
 }
 
-const DefaultPokeAPIRoot = `https://pokeapi.co/api/v2`
+// A CacheLookup represents a look-up operation & allows the cache to be
+// back-filled with the result (via Hydrate).
+//
+// One of Hydrate or Close must be called after opening a CacheLookup, and it
+// is always safe to call Close repeatedly or after a call to Hydrate. Once one
+// of these two methods is called, the other will not have an effect.
+//
+// The return of Value is permitted to change after a call to Hydrate, but it is
+// not required.
+type CacheLookup interface {
+	Value() (_ any, ok bool)
+	Hydrate(resource any)
+	Close() // It is always safe to call Close
+}
 
-func trimSlash[S ~string](s S) string { return strings.Trim(string(s), "/") }
+// A Cache allows the Client to Lookup a URL and retrieve the corresponding
+// resource if it has been fetched before.
+//
+// The Lookup method returns a CacheLookup, which behaves similarly to a sql.Tx.
+//
+// A Cache may block opening a new CacheLookup until the previous one is closed,
+// so callers must always ensure to call CacheLookup.Close (typically via defer).
+type Cache interface{ Lookup(url string) CacheLookup }
 
 // NewClient creates and returns a new Client with the provided NewClientOpts
 // applied. It is safe to use as NewClient(nil), but you are expected to do your
 // own caching.
 func NewClient(opts *NewClientOpts) *Client {
-	c := Client{client: http.DefaultClient, pokeAPIRoot: DefaultPokeAPIRoot}
+	c := Client{client: http.DefaultClient, pokeAPIRoot: DefaultPokeAPIRoot, cache: noCache{}}
 
 	if opts != nil {
 		if opts.HTTPClient != nil {
@@ -66,63 +84,26 @@ func NewClient(opts *NewClientOpts) *Client {
 	return &c
 }
 
+// A Resource is the kebab-case name for a PokéAPI endpoint. Resources can
+// typically be called with
+//
+//	GET {root}/resource`
+//
+// to return a list of links to instances of the resource or
+//
+//	`GET {root}/resource/{id or name}`
+//
+// to get a single instance of that Resource. Exceptions to this rule are
+// documented.
 type Resource string
+
+func trimSlash[S ~string](s S) string { return strings.Trim(string(s), "/") }
 
 func (c *Client) listURL(resource Resource) string {
 	return fmt.Sprintf("%s/%s/", c.pokeAPIRoot, trimSlash(resource))
 }
 func (c *Client) getURL(resource Resource, name string) string {
 	return fmt.Sprintf("%s/%s/%s/", c.pokeAPIRoot, trimSlash(resource), trimSlash(name))
-}
-
-// Function do performs a type-safe http GET operation, using the client's cache
-// if possible.
-func do[T any](ctx context.Context, c *Client, path string, values url.Values) (T, error) {
-	var zero T
-	cacheAvailable := c.cache != nil
-
-	if cacheAvailable {
-		if v, ok := c.cache.Lookup(path); ok {
-			res, isT := v.(T) // unlikely, but handle just in case
-			if isT {
-				return res, nil
-			}
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return zero, fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-
-	if len(values) != 0 {
-		qry := req.URL.Query()
-		for field, val := range values {
-			qry[field] = val
-		}
-		req.URL.RawQuery = qry.Encode()
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return zero, fmt.Errorf("performing request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		// todo : sentinel errors for various status codes
-		return zero, fmt.Errorf("received non-zero status code: %d", resp.StatusCode)
-	}
-
-	var res T
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return zero, fmt.Errorf("decoding json response: %w", err)
-	}
-
-	if cacheAvailable {
-		c.cache.Cache(path, res)
-	}
-	return res, nil
 }
 
 // An Identifier is embedded into all retrievable resources. It makes it easy to
@@ -143,8 +124,7 @@ type APIResource[T any] struct {
 	URL string `json:"url"`
 }
 
-// Get uses the passed Client to retrieve the full details of the given
-// resource.
+// Get uses the passed Client to retrieve the full details of the given APIResource.
 func (r APIResource[T]) Get(ctx context.Context, client *Client) (*T, error) {
 	return do[*T](ctx, client, r.URL, nil)
 }
@@ -166,6 +146,8 @@ type NamedAPIResource[T any] struct {
 	Name string `json:"name"`
 }
 
+// ListOptions are available on all List* endpoints, allowing you to do set up
+// your own pagination start point.
 type ListOptions struct {
 	Limit  int
 	Offset int
@@ -216,4 +198,63 @@ func (p *Page[R, T]) GetPrevious(ctx context.Context, client *Client) (*Page[R, 
 	}
 
 	return do[*Page[R, T]](ctx, client, p.Previous, nil)
+}
+
+type noCacheLookup struct{}
+
+func (noCacheLookup) Hydrate(any)        {}
+func (noCacheLookup) Close()             {}
+func (noCacheLookup) Value() (any, bool) { return nil, false }
+
+// The noCache is the default Cache implementation used by a Client. While it is
+// valid for use, it does not perform any actual caching.
+type noCache struct{}
+
+func (noCache) Lookup(string) CacheLookup { return noCacheLookup{} }
+
+// do performs a type-safe http GET operation, using the Client's cache.
+func do[T any](ctx context.Context, c *Client, path string, values url.Values) (T, error) {
+	var zero T
+
+	cachedValue := c.cache.Lookup(path)
+	defer cachedValue.Close()
+
+	if v, ok := cachedValue.Value(); ok {
+		res, isT := v.(T) // unlikely, but handle just in case
+		if isT {
+			return res, nil
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return zero, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	if len(values) != 0 {
+		qry := req.URL.Query()
+		for field, val := range values {
+			qry[field] = val
+		}
+		req.URL.RawQuery = qry.Encode()
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return zero, fmt.Errorf("performing request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		// todo : sentinel errors for various status codes
+		return zero, fmt.Errorf("received non-zero status code: %d", resp.StatusCode)
+	}
+
+	var res T
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return zero, fmt.Errorf("decoding json response: %w", err)
+	}
+
+	cachedValue.Hydrate(res)
+	return res, nil
 }
