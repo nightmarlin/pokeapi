@@ -48,12 +48,17 @@ type NewClientOpts struct {
 // is always safe to call Close repeatedly or after a call to Hydrate. Once one
 // of these two methods is called, the other will not have an effect.
 //
-// The return of Value is permitted to change after a call to Hydrate, but it is
-// not required.
+// Once Hydrate or Close is called, Value is permitted to change the value it
+// returns to any other value, and should not be called.
 type CacheLookup interface {
+	// Value returns the initial result of the lookup. It should not be called after Hydrate or Close.
 	Value() (_ any, ok bool)
+	// Hydrate back-fills the cache with the value and closes the CacheLookup.
+	// Calling Hydrate after Close is a no-op.
 	Hydrate(resource any)
-	Close() // It is always safe to call Close
+	// Close closes the CacheLookup, freeing up any used resources. It is always
+	// safe to call.
+	Close()
 }
 
 // A Cache allows the Client to Lookup a URL and retrieve the corresponding
