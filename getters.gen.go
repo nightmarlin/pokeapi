@@ -251,6 +251,15 @@ func (c *Client) ListMoveAilments(ctx context.Context, opts *ListOptions) (*Page
 	return do[*Page[NamedAPIResource[MoveAilment], MoveAilment]](ctx, c, c.listURL(MoveAilmentResource), opts.urlValues())
 }
 
+const MoveBattleStyleResource Resource = "move-battle-style"
+
+func (c *Client) GetMoveBattleStyle(ctx context.Context, ident string) (*MoveBattleStyle, error) {
+	return do[*MoveBattleStyle](ctx, c, c.getURL(MoveBattleStyleResource, ident), nil)
+}
+func (c *Client) ListMoveBattleStyles(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveBattleStyle], MoveBattleStyle], error) {
+	return do[*Page[NamedAPIResource[MoveBattleStyle], MoveBattleStyle]](ctx, c, c.listURL(MoveBattleStyleResource), opts.urlValues())
+}
+
 const MoveCategoryResource Resource = "move-category"
 
 func (c *Client) GetMoveCategory(ctx context.Context, ident string) (*MoveCategory, error) {

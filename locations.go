@@ -3,7 +3,7 @@ package pokeapi
 type Location struct {
 	NamedIdentifier
 
-	Region      NamedAPIResource[Region]         `json:"region"`
+	Region      *NamedAPIResource[Region]        `json:"region"`
 	Names       []Name                           `json:"names"`
 	GameIndices []GenerationGameIndex            `json:"game_indices"`
 	Areas       []NamedAPIResource[LocationArea] `json:"areas"`
@@ -52,7 +52,7 @@ type Region struct {
 
 	Locations      []NamedAPIResource[Location]     `json:"locations"`
 	Names          []Name                           `json:"names"`
-	MainGeneration NamedAPIResource[Generation]     `json:"main_generation"` // The generation this region was introduced in.
+	MainGeneration *NamedAPIResource[Generation]    `json:"main_generation"` // The generation this region was introduced in.
 	Pokedexes      []NamedAPIResource[Pokedex]      `json:"pokedexes"`
 	VersionGroups  []NamedAPIResource[VersionGroup] `json:"version_groups"`
 }

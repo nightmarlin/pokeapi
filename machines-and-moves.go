@@ -14,8 +14,8 @@ type ContestComboDetail struct {
 }
 
 type ContestComboSets struct {
-	Normal ContestComboDetail `json:"normal"`
-	Super  ContestComboDetail `json:"super"`
+	Normal *ContestComboDetail `json:"normal"`
+	Super  *ContestComboDetail `json:"super"`
 }
 
 type MoveFlavorText struct {
@@ -25,7 +25,7 @@ type MoveFlavorText struct {
 }
 
 type MoveMetaData struct {
-	Ailment       *NamedAPIResource[MoveAilment] `json:"ailment"`
+	Ailment       NamedAPIResource[MoveAilment]  `json:"ailment"`
 	Category      NamedAPIResource[MoveCategory] `json:"category"`
 	MinHits       *int                           `json:"min_hits"`  // The minimum number of times this move hits. Null if it always only hits once.
 	MaxHits       *int                           `json:"max_hits"`  // The maximum number of times this move hits. Null if it always only hits once.
@@ -45,37 +45,37 @@ type MoveStatChange struct {
 }
 
 type PastMoveStatValues struct {
-	Accuracy      int                            `json:"accuracy"`
-	EffectChance  int                            `json:"effect_chance"`
-	Power         int                            `json:"power"`
-	PP            int                            `json:"pp"`
+	Accuracy      *int                           `json:"accuracy"`
+	EffectChance  *int                           `json:"effect_chance"`
+	Power         *int                           `json:"power"`
+	PP            *int                           `json:"pp"`
 	EffectEntries []VerboseEffect                `json:"effect_entries"`
-	Type          NamedAPIResource[Type]         `json:"type"`
+	Type          *NamedAPIResource[Type]        `json:"type"`
 	VersionGroup  NamedAPIResource[VersionGroup] `json:"version_group"`
 }
 
 type Move struct {
 	NamedIdentifier
 
-	Accuracy         int                               `json:"accuracy"`
-	EffectChance     int                               `json:"effect_chance"`
+	Accuracy         *int                              `json:"accuracy"`
+	EffectChance     *int                              `json:"effect_chance"`
 	PP               int                               `json:"pp"`
 	Priority         int                               `json:"priority"` // -8 <= Priority <= 8
-	Power            int                               `json:"power"`    // May be 0 for moves with variable power.
+	Power            *int                              `json:"power"`    // May be 0 for moves with variable power.
 	DamageClass      NamedAPIResource[MoveDamageClass] `json:"damage_class"`
 	Generation       NamedAPIResource[Generation]      `json:"generation"`
 	LearnedByPokemon []NamedAPIResource[Pokemon]       `json:"learned_by_pokemon"`
 	Machines         []MachineVersionDetail            `json:"machines"`
-	Meta             MoveMetaData                      `json:"meta"`
+	Meta             *MoveMetaData                     `json:"meta"`
 	PastValues       []PastMoveStatValues              `json:"past_values"`
 	StatChanges      []MoveStatChange                  `json:"stat_changes"`
 	Target           NamedAPIResource[MoveTarget]      `json:"target"`
 	Type             NamedAPIResource[Type]            `json:"type"`
 
-	ContestCombos      ContestComboSets                `json:"contest_combos"`
-	ContestType        NamedAPIResource[ContestType]   `json:"contest_type"`
-	ContestEffect      APIResource[ContestEffect]      `json:"contest_effect"`
-	SuperContestEffect APIResource[SuperContestEffect] `json:"super_contest_effect"`
+	ContestCombos      *ContestComboSets                `json:"contest_combos"`
+	ContestType        *NamedAPIResource[ContestType]   `json:"contest_type"`
+	ContestEffect      *APIResource[ContestEffect]      `json:"contest_effect"`
+	SuperContestEffect *APIResource[SuperContestEffect] `json:"super_contest_effect"`
 
 	EffectEntries     []VerboseEffect       `json:"effect_entries"`
 	EffectChanges     []AbilityEffectChange `json:"effect_changes"`
@@ -84,13 +84,14 @@ type Move struct {
 
 type MoveAilment struct {
 	NamedIdentifier
+
 	Moves []NamedAPIResource[Move] `json:"moves"`
 	Names []Name                   `json:"names"`
 }
 
 type MoveBattleStyle struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
+	NamedIdentifier
+
 	Names []Name `json:"names"`
 }
 

@@ -60,6 +60,10 @@ type Basic struct {
 
 // NewBasic constructs a new Basic cache with the specified size. If size <= 0,
 // the default size of 50 records is used.
+//
+// While the Basic cache is suitable for concurrent use, it doesn't support
+// concurrent open pokeapi.CacheLookup s. An open pokeapi.CacheLookup returned
+// by Basic.Lookup will block any others from being opened.
 func NewBasic(size int) *Basic {
 	if size <= 0 {
 		size = defaultBasicCacheSize

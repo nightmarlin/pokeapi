@@ -170,23 +170,26 @@ type PokemonStat struct {
 }
 
 // PokemonSprites are a set of URLs pointing to where the sprite images are
-// hosted. If there's no gender-specific variant, the *Female fields will be "".
+// hosted.
 type PokemonSprites struct {
-	FrontDefault     string `json:"front_default"`
-	FrontShiny       string `json:"front_shiny"`
-	FrontFemale      string `json:"front_female"`
-	FrontShinyFemale string `json:"front_shiny_female"`
-	BackDefault      string `json:"back_default"`
-	BackShiny        string `json:"back_shiny"`
-	BackFemale       string `json:"back_female"`
-	BackShinyFemale  string `json:"back_shiny_female"`
+	// TODO: why is this API resource so ridiculously complex.
+	// Come back to it.
+
+	FrontDefault     string  `json:"front_default"`
+	FrontShiny       string  `json:"front_shiny"`
+	BackDefault      string  `json:"back_default"`
+	BackShiny        string  `json:"back_shiny"`
+	FrontFemale      *string `json:"front_female"`
+	FrontShinyFemale *string `json:"front_shiny_female"`
+	BackFemale       *string `json:"back_female"`
+	BackShinyFemale  *string `json:"back_shiny_female"`
 }
 
-// PokemonCries are a set of URLs pointing to the sounds files for the Pokemon's
+// PokemonCries are a set of URLs pointing to the sound files for the Pokemon's
 // cry.
 type PokemonCries struct {
-	Latest string `json:"latest"`
-	Legacy string `json:"legacy"`
+	Latest string  `json:"latest"`
+	Legacy *string `json:"legacy"`
 }
 
 type Pokemon struct {
@@ -210,8 +213,7 @@ type Pokemon struct {
 	Types          []PokemonType                    `json:"types"`
 
 	// A URL to the PokemonLocationArea s this Pokemon can be encountered in.
-	// Prefer Client.GetPokemonLocationArea/Client.ListPokemonLocationAreas or
-	// Pokemon.GetEncounter/Pokemon.ListEncounters.
+	// To retrieve, use Client.GetPokemonEncounters or Pokemon.GetEncounters.
 	LocationAreaEncounters string `json:"location_area_encounters"`
 }
 
@@ -256,10 +258,14 @@ type PokemonColor struct {
 }
 
 type PokemonFormSprites struct {
-	FrontDefault string `json:"front_default"`
-	FrontShiny   string `json:"front_shiny"`
-	BackDefault  string `json:"back_default"`
-	BackShiny    string `json:"back_shiny"`
+	FrontDefault     string  `json:"front_default"`
+	FrontShiny       string  `json:"front_shiny"`
+	BackDefault      string  `json:"back_default"`
+	BackShiny        string  `json:"back_shiny"`
+	FrontFemale      *string `json:"front_female"`
+	FrontShinyFemale *string `json:"front_shiny_female"`
+	BackFemale       *string `json:"back_female"`
+	BackShinyFemale  *string `json:"back_shiny_female"`
 }
 
 type PokemonForm struct {

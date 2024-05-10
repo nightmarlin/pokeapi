@@ -17,8 +17,8 @@ type ItemHolderPokemon struct {
 type Item struct {
 	NamedIdentifier
 
-	FlingPower  int                               `json:"fling_power"`
-	FlingEffect NamedAPIResource[ItemFlingEffect] `json:"fling_effect"`
+	FlingPower  *int                               `json:"fling_power"`
+	FlingEffect *NamedAPIResource[ItemFlingEffect] `json:"fling_effect"`
 
 	Cost              int                               `json:"cost"`
 	Attributes        []NamedAPIResource[ItemAttribute] `json:"attributes"`

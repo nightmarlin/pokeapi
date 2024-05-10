@@ -16,6 +16,7 @@ type EvolutionDetail struct {
 	PartySpecies          *NamedAPIResource[PokemonSpecies]  `json:"party_species"`           // The Pokémon species that must be in the players party in order for the evolving Pokémon species to evolve into this Pokémon species.
 	PartyType             *NamedAPIResource[Type]            `json:"party_type"`              // The player must have a Pokémon of this type in their party during the evolution trigger event in order for the evolving Pokémon species to evolve into this Pokémon species
 	RelativePhysicalStats *int                               `json:"relative_physical_stats"` // The required relation between the Pokémon's Attack and Defense stats. 1 means Attack > Defense. 0 means Attack = Defense. -1 means Attack < Defense.
+	TimeOfDay             string                             `json:"time_of_day"`
 	TradeSpecies          *NamedAPIResource[PokemonSpecies]  `json:"trade_species"`
 	TurnUpsideDown        bool                               `json:"turn_upside_down"`
 }

@@ -24,7 +24,7 @@ type Pokedex struct {
 	Descriptions   []Description                    `json:"descriptions"`
 	Names          []Name                           `json:"names"`
 	PokemonEntries []PokemonEntry                   `json:"pokemon_entries"`
-	Region         NamedAPIResource[Region]         `json:"region"`
+	Region         *NamedAPIResource[Region]        `json:"region"`
 	VersionGroups  []NamedAPIResource[VersionGroup] `json:"version_groups"`
 }
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE
+//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE "getters.gen.go"
 
 // The DefaultPokeAPIRoot is the standard URL for PokéAPI. An alternative URL
 // can be provided via [NewClientOpts.PokeAPIRoot] for use with alternative
@@ -24,7 +24,11 @@ const DefaultPokeAPIRoot = `https://pokeapi.co/api/v2`
 //
 // All methods of the form `List*` will return the first Page of results, and
 // accept an optional ListOptions parameter to permit you to start iteration
-// wherever you like. This parameter may always be nil.
+// wherever you like. This parameter may always be nil to start iteration from
+// the beginning.
+//
+// Return types are exact as possible. Pointer types are used to represent
+// "optional" fields. Slice fields are is always potentially empty.
 type Client struct {
 	client      *http.Client
 	cache       Cache
@@ -146,8 +150,8 @@ type NamedAPIResource[T any] struct {
 	Name string `json:"name"`
 }
 
-// ListOptions are available on all List* endpoints, allowing you to do set up
-// your own pagination start point.
+// ListOptions are available on all List* endpoints, allowing you to set up your
+// own pagination start point.
 type ListOptions struct {
 	Limit  int
 	Offset int
@@ -174,30 +178,30 @@ func (lo *ListOptions) urlValues() url.Values {
 // includes information on the total number of resources in the result set, and
 // how to view the Next & Previous Page s.
 type Page[R APIResource[T] | NamedAPIResource[T], T any] struct {
-	Count    int    `json:"count"`    // The total number of resources available from this API.
-	Next     string `json:"next"`     // The URL for the next page in the list.
-	Previous string `json:"previous"` // The URL for the previous page in the list.
-	Results  []R    `json:"results"`
+	Count    int     `json:"count"`    // The total number of resources available from this API.
+	Next     *string `json:"next"`     // The URL for the next page in the list.
+	Previous *string `json:"previous"` // The URL for the previous page in the list.
+	Results  []R     `json:"results"`
 }
 
 // GetNext retrieves the Page at Page.Next. If there is no next page,
 // ErrListExhausted is returned.
 func (p *Page[R, T]) GetNext(ctx context.Context, client *Client) (*Page[R, T], error) {
-	if p.Next == "" {
+	if p.Next == nil {
 		return nil, ErrListExhausted
 	}
 
-	return do[*Page[R, T]](ctx, client, p.Next, nil)
+	return do[*Page[R, T]](ctx, client, *p.Next, nil)
 }
 
 // GetPrevious retrieves the Page at Page.Previous. If there is no previous
 // page, ErrListExhausted is returned.
 func (p *Page[R, T]) GetPrevious(ctx context.Context, client *Client) (*Page[R, T], error) {
-	if p.Previous == "" {
+	if p.Previous == nil {
 		return nil, ErrListExhausted
 	}
 
-	return do[*Page[R, T]](ctx, client, p.Previous, nil)
+	return do[*Page[R, T]](ctx, client, *p.Previous, nil)
 }
 
 type noCacheLookup struct{}
@@ -246,8 +250,7 @@ func do[T any](ctx context.Context, c *Client, path string, values url.Values) (
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		// todo : sentinel errors for various status codes
-		return zero, fmt.Errorf("received non-zero status code: %d", resp.StatusCode)
+		return zero, HTTPErr{Status: resp.Status, StatusCode: resp.StatusCode}
 	}
 
 	var res T

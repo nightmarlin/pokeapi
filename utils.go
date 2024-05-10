@@ -4,8 +4,6 @@ import (
 	"strings"
 )
 
-//go:generate go run cmd/gettergen/gettergen.go -- "$GOFILE" "Language"
-
 type Language struct {
 	NamedIdentifier
 

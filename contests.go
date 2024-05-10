@@ -2,7 +2,7 @@ package pokeapi
 
 type ContestName struct {
 	Name     string                     `json:"name"`
-	Color    string                     `json:"color"` // The color associated with this contest's name.
+	Color    string                     `json:"color"` // The color associated with this contest's name. May be empty.
 	Language NamedAPIResource[Language] `json:"language"`
 }
 

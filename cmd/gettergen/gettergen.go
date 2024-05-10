@@ -22,50 +22,32 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+func printErr(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format, args...) }
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
 	flag.Parse()
 
-	if len(flag.Args()) != 1 {
-		_, _ = fmt.Fprintf(os.Stderr, "one arg (package path) is required, got args: %v\n", flag.Args())
+	args := flag.Args()
+	if len(args) != 2 {
+		printErr("two args (package path, out file) are required, got args: %v\n", args)
 		os.Exit(1)
 	}
 
-	packageDir := filepath.Dir(os.Args[1])
+	packageDir := filepath.Dir(args[0])
+	outFile := args[1]
 
-	if err := run(ctx, packageDir); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-}
-
-const (
-	unnamedIdentifierTypeName = `Identifier`
-	namedIdentifierTypeName   = `NamedIdentifier`
-)
-
-var (
-	embedExclusions = map[string]struct{}{
-		`NamedIdentifier`: {}, // Embeds Identifier, but is not a Resource
-	}
-)
-
-func outFileName(dir string) string {
-	return filepath.Join(dir, "getters.gen.go")
-}
-
-func run(ctx context.Context, packageDir string) error {
 	resourceDefinitions, err := loadResourceNames(ctx, packageDir)
 	if err != nil {
-		return fmt.Errorf("loading resource names: %w", err)
+		printErr("failed to load resource names: %s", err.Error())
+		os.Exit(1)
 	}
 
-	if err := generateFile(outFileName(packageDir), resourceDefinitions); err != nil {
-		return fmt.Errorf("generating file: %w", err)
+	if err := generateFile(outFile, resourceDefinitions); err != nil {
+		printErr("failed to generate file: %s", err.Error())
+		os.Exit(1)
 	}
-
-	return nil
 }
 
 type resourceDefinition struct {
@@ -73,10 +55,16 @@ type resourceDefinition struct {
 	isUnnamedResource bool
 }
 
-func loadResourceNames(
-	ctx context.Context,
-	dir string,
-) ([]resourceDefinition, error) {
+const (
+	unnamedIdentifierTypeName = `Identifier`
+	namedIdentifierTypeName   = `NamedIdentifier`
+)
+
+var embedExclusions = map[string]struct{}{
+	`NamedIdentifier`: {}, // Embeds Identifier, but is not a Resource
+}
+
+func loadResourceNames(ctx context.Context, dir string) ([]resourceDefinition, error) {
 	pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedTypes, Context: ctx}, dir)
 	if err != nil {
 		return nil, fmt.Errorf("loading package: %w", err)
@@ -91,33 +79,32 @@ func loadResourceNames(
 		if _, excluded := embedExclusions[objName]; excluded {
 			continue
 		}
-		obj := ts.Lookup(objName)
+		t := ts.Lookup(objName).Type()
 
-		t := obj.Type()
-		n, isNamed := t.(*types.Named)
+		namedT, isNamed := t.(*types.Named)
 		if !isNamed {
 			continue
 		}
 
-		s, isStruct := n.Underlying().(*types.Struct)
+		structT, isStruct := namedT.Underlying().(*types.Struct)
 		if !isStruct {
 			continue
 		}
 
-		for i := range s.NumFields() {
-			f := s.Field(i)
+		for fieldNum := range structT.NumFields() {
+			structF := structT.Field(fieldNum)
 
-			if !f.Embedded() {
+			if !structF.Embedded() {
 				continue
 			}
 
-			fieldName := f.Name()
-			switch fieldName {
+			switch structF.Name() {
 			case unnamedIdentifierTypeName:
 				definitions = append(
 					definitions,
 					resourceDefinition{resourceName: objName, isUnnamedResource: true},
 				)
+
 			case namedIdentifierTypeName:
 				definitions = append(
 					definitions,
@@ -125,7 +112,6 @@ func loadResourceNames(
 				)
 			}
 		}
-
 	}
 
 	return definitions, nil
@@ -191,9 +177,7 @@ func skewer(name string) string {
 	return strings.ToLower(skewerRegexp.ReplaceAllString(name, `$1-$2`))
 }
 
-var (
-	resourceTemplate = template.Must(template.New("resource").Parse(resourceTemplateString))
-)
+var resourceTemplate = template.Must(template.New("resource").Parse(resourceTemplateString))
 
 func (rd resourceDefinition) toTemplateArgs() resourceTemplateArgs {
 	return resourceTemplateArgs{
