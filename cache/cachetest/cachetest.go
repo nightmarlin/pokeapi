@@ -56,6 +56,58 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 	)
 
 	t.Run(
+		"multiple hydration of same lookup returns first value",
+		func(t *testing.T) {
+			t.Parallel()
+
+			const (
+				resource = "https://pokapi.co/api/v2/pokemon/stunfisk"
+				valueA   = "an electric-type pokemon"
+				valueB   = "a ground-type pokemon"
+			)
+
+			cache := newCache(1)
+
+			lookup := cache.Lookup(resource)
+			lookup.Hydrate(valueA) // only the first Hydrate() call should have an effect
+			lookup.Hydrate(valueB)
+			lookup.Close()
+
+			lookup = cache.Lookup(resource)
+			defer lookup.Close()
+
+			if got, ok := lookup.Value(); !ok || valueA != got {
+				t.Errorf(`want lookup.Value() to return (%q, true); got (%v, %T)`, valueA, got, ok)
+			}
+		},
+	)
+
+	t.Run(
+		"hydration of lookup after close has no effect",
+		func(t *testing.T) {
+			t.Parallel()
+
+			const (
+				resource = "https://pokapi.co/api/v2/pokemon/surskit"
+				value    = "a water-type pokemon"
+			)
+
+			cache := newCache(1)
+
+			lookup := cache.Lookup(resource)
+			lookup.Close()
+			lookup.Hydrate(value) // hydrate after close should have no effect
+
+			lookup = cache.Lookup(resource) // this lookup should miss
+			defer lookup.Close()
+
+			if got, ok := lookup.Value(); ok {
+				t.Errorf(`want lookup.Value() to return (nil, false); got (%v, %T)`, got, ok)
+			}
+		},
+	)
+
+	t.Run(
 		"for a cache of size N, hydration of N resources means no lookups for those resources miss",
 		func(t *testing.T) {
 			t.Parallel()
@@ -199,6 +251,8 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 	)
 
 	// the cache may be used by multiple concurrent goroutines
+	// note: code that could fail this test may not always. be sure to enable the
+	// race detector and run the tests with -test.count.
 	t.Run(
 		"cache supports concurrent lookups on the same resource - only the first cache lookup should miss",
 		func(t *testing.T) {
