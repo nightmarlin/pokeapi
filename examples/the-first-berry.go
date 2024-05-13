@@ -17,7 +17,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
 
-	c := pokeapi.NewClient(&pokeapi.NewClientOpts{Cache: cache.NewBasic(50)})
+	c := pokeapi.NewClient(&pokeapi.NewClientOpts{Cache: cache.NewLRU(50)})
 
 	berries, err := c.ListBerries(ctx, nil)
 	if err != nil {

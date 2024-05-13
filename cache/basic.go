@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"github.com/nightmarlin/pokeapi"
@@ -22,7 +23,7 @@ type basicLookup struct {
 	c         chan<- any
 }
 
-func (b *basicLookup) Value() (any, bool) {
+func (b *basicLookup) Value(context.Context) (any, bool) {
 	defer b.mux.RUnlock()
 	b.mux.RLock()
 
@@ -38,7 +39,7 @@ func (b *basicLookup) cleanup() {
 	b.hasVal = false
 }
 
-func (b *basicLookup) Hydrate(resource any) {
+func (b *basicLookup) Hydrate(_ context.Context, resource any) {
 	b.closeOnce.Do(
 		func() {
 			b.c <- resource
@@ -47,7 +48,7 @@ func (b *basicLookup) Hydrate(resource any) {
 	)
 }
 
-func (b *basicLookup) Close() { b.closeOnce.Do(b.cleanup) }
+func (b *basicLookup) Close(context.Context) { b.closeOnce.Do(b.cleanup) }
 
 // The Basic cache provides a simple wraparound cache for the last N requests.
 // Once N responses are cached, new responses will overwrite the oldest ones.
@@ -71,7 +72,7 @@ func NewBasic(size int) *Basic {
 	return &Basic{store: make([]basicCacheEntry, size)}
 }
 
-func (b *Basic) Lookup(url string) pokeapi.CacheLookup {
+func (b *Basic) Lookup(c_ context.Context, url string) pokeapi.CacheLookup {
 	// acquire cache-level lock
 	b.mux.Lock()
 

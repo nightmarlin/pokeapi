@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 
 	"github.com/nightmarlin/pokeapi"
@@ -122,7 +123,7 @@ func (lru *LRU) insertValue(url string, value any) {
 	}
 }
 
-func (lru *LRU) Lookup(url string) pokeapi.CacheLookup {
+func (lru *LRU) Lookup(_ context.Context, url string) pokeapi.CacheLookup {
 	// 1. acquire lock to process url
 	//   - ensures two concurrent lookups for the same url are ordered, so work is never duplicated
 	// 2. acquire lock to modify cache
@@ -133,7 +134,8 @@ func (lru *LRU) Lookup(url string) pokeapi.CacheLookup {
 		// spin: attempt to acquire lock on individual url.
 		// todo: reduce spins?
 
-		if _, urlIsLocked := lru.ongoing.LoadOrStore(url, struct{}{}); !urlIsLocked {
+		_, urlIsLocked := lru.ongoing.LoadOrStore(url, struct{}{})
+		if !urlIsLocked {
 			break
 		}
 	}
@@ -198,7 +200,7 @@ type lruLookup struct {
 	cleanupFn func()
 }
 
-func (l *lruLookup) Value() (_ any, ok bool) {
+func (l *lruLookup) Value(context.Context) (_ any, ok bool) {
 	defer l.mux.RUnlock()
 	l.mux.RLock()
 	return l.value, l.hasValue
@@ -213,7 +215,7 @@ func (l *lruLookup) cleanup() {
 	l.cleanupFn = nil
 }
 
-func (l *lruLookup) Hydrate(resource any) {
+func (l *lruLookup) Hydrate(_ context.Context, resource any) {
 	defer l.mux.Unlock()
 	l.mux.Lock()
 
@@ -226,7 +228,7 @@ func (l *lruLookup) Hydrate(resource any) {
 
 }
 
-func (l *lruLookup) Close() {
+func (l *lruLookup) Close(context.Context) {
 	defer l.mux.Unlock()
 	l.mux.Lock()
 

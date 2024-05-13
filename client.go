@@ -52,13 +52,13 @@ type NewClientOpts struct {
 // returns to any other value, and should not be called.
 type CacheLookup interface {
 	// Value returns the initial result of the lookup. It should not be called after Hydrate or Close.
-	Value() (_ any, ok bool)
+	Value(ctx context.Context) (_ any, ok bool)
 	// Hydrate back-fills the cache with the value and closes the CacheLookup.
 	// Calling Hydrate after Close is a no-op.
-	Hydrate(resource any)
+	Hydrate(ctx context.Context, resource any)
 	// Close closes the CacheLookup, freeing up any used resources. It is always
 	// safe to call.
-	Close()
+	Close(ctx context.Context)
 }
 
 // A Cache allows the Client to Lookup a URL and retrieve the corresponding
@@ -68,7 +68,9 @@ type CacheLookup interface {
 //
 // A Cache may block opening a new CacheLookup until the previous one is closed,
 // so callers must always ensure to call CacheLookup.Close (typically via defer).
-type Cache interface{ Lookup(url string) CacheLookup }
+type Cache interface {
+	Lookup(ctx context.Context, url string) CacheLookup
+}
 
 // NewClient creates and returns a new Client with the provided NewClientOpts
 // applied. It is safe to use as NewClient(nil), but you are expected to do your
@@ -211,24 +213,24 @@ func (p *Page[R, T]) GetPrevious(ctx context.Context, client *Client) (*Page[R, 
 
 type noCacheLookup struct{}
 
-func (noCacheLookup) Hydrate(any)        {}
-func (noCacheLookup) Close()             {}
-func (noCacheLookup) Value() (any, bool) { return nil, false }
+func (noCacheLookup) Hydrate(context.Context, any)      {}
+func (noCacheLookup) Close(context.Context)             {}
+func (noCacheLookup) Value(context.Context) (any, bool) { return nil, false }
 
 // The noCache is the default Cache implementation used by a Client. While it is
 // valid for use, it does not perform any actual caching.
 type noCache struct{}
 
-func (noCache) Lookup(string) CacheLookup { return noCacheLookup{} }
+func (noCache) Lookup(context.Context, string) CacheLookup { return noCacheLookup{} }
 
 // do performs a type-safe http GET operation, using the Client's cache.
 func do[T any](ctx context.Context, c *Client, path string, values url.Values) (T, error) {
 	var zero T
 
-	cachedValue := c.cache.Lookup(path)
-	defer cachedValue.Close()
+	cachedValue := c.cache.Lookup(ctx, path)
+	defer cachedValue.Close(ctx)
 
-	if v, ok := cachedValue.Value(); ok {
+	if v, ok := cachedValue.Value(ctx); ok {
 		res, isT := v.(T) // unlikely, but handle just in case
 		if isT {
 			return res, nil
@@ -263,6 +265,6 @@ func do[T any](ctx context.Context, c *Client, path string, values url.Values) (
 		return zero, fmt.Errorf("decoding json response: %w", err)
 	}
 
-	cachedValue.Hydrate(res)
+	cachedValue.Hydrate(ctx, res)
 	return res, nil
 }

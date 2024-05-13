@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/nightmarlin/pokeapi/cache"
@@ -31,16 +32,17 @@ func TestBasic(t *testing.T) {
 				resourceC = "https://pokeapi.co/api/v2/pidove"
 				valueC    = "small bird"
 			)
+			ctx := context.Background()
 
 			c := cache.NewBasic(2)
-			c.Lookup(resourceA).Hydrate(valueA)
-			c.Lookup(resourceB).Hydrate(valueB)
-			c.Lookup(resourceC).Hydrate(valueC)
+			c.Lookup(ctx, resourceA).Hydrate(ctx, valueA)
+			c.Lookup(ctx, resourceB).Hydrate(ctx, valueB)
+			c.Lookup(ctx, resourceC).Hydrate(ctx, valueC)
 
-			lookup := c.Lookup(resourceA)
-			defer lookup.Close()
+			lookup := c.Lookup(ctx, resourceA)
+			defer lookup.Close(ctx)
 
-			if _, ok := lookup.Value(); ok {
+			if _, ok := lookup.Value(ctx); ok {
 				t.Errorf("want resource %q to be evicted, but it wasn't", resourceA)
 			}
 		},
