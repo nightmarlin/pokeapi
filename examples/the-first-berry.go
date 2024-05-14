@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 
@@ -13,51 +14,69 @@ import (
 	"github.com/nightmarlin/pokeapi/cache"
 )
 
+func logErr(log *slog.Logger) func(error, string) {
+	return func(err error, msg string) { log.Error(msg, slog.String("error", err.Error())) }
+}
+func logInfof(log *slog.Logger) func(string, ...any) {
+	return func(format string, args ...any) { log.Info(fmt.Sprintf(format, args...)) }
+}
+
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	var (
+		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+		log         = slog.New(slog.NewTextHandler(os.Stderr, nil))
+		e, i        = logErr(log), logInfof(log)
+	)
+
 	defer cancel()
 
-	c := pokeapi.NewClient(&pokeapi.NewClientOpts{Cache: cache.NewLRU(50)})
+	c := pokeapi.NewClient(&pokeapi.NewClientOpts{Cache: cache.NewLRU(5)})
 
 	berries, err := c.ListBerries(ctx, nil)
 	if err != nil {
-		panic(err)
+		e(err, "failed to list all the berries")
+		return
 	}
 
-	fmt.Println("there are", berries.Count, "known berries")
+	i("there are %d known berries", berries.Count)
 
 	firstBerry, err := berries.Results[0].Get(ctx, c)
 	if err != nil {
-		panic(err)
+		e(err, "failed to fetch the first berry")
+		return
 	}
 
-	fmt.Println("the first berry is the", firstBerry.Name, "berry")
+	i("the first berry is the %s berry", firstBerry.Name)
 
-	reFetchedBerry, err := c.GetBerry(ctx, firstBerry.Ident())
+	reFetchedBerry, err := c.GetBerry(ctx, firstBerry.Ident()) // should hit the cache
 	if err != nil {
-		panic(err)
+		e(err, "failed to re-fetch the first berry")
+		return
 	}
 
-	fmt.Println("no really, it's the", reFetchedBerry.Name, "berry")
+	i("no really, it's the %s berry", reFetchedBerry.Name)
 
-	reReFetchedBerry, err := c.GetBerry(ctx, firstBerry.Ident())
+	reReFetchedBerry, err := c.GetBerry(ctx, firstBerry.Ident()) // definitely hits the cache!
 	if err != nil {
-		panic(err)
+		e(err, "failed to re-fetch the first berry")
+		return
 	}
 
-	fmt.Println("i am 100% certain it's the", reReFetchedBerry.Name, "berry")
+	i("i am 100%% certain it's the %s berry", reReFetchedBerry.Name)
 
 	item, err := firstBerry.Item.Get(ctx, c)
 	if err != nil {
-		panic(err)
+		e(err, "failed to fetch the item corresponding to the first berry")
+		return
 	}
 
-	fmt.Printf("it typically costs %d$poké\n", item.Cost)
+	i("it typically costs %d$poké", item.Cost)
 
 	category, err := item.Category.Get(ctx, c)
 	if err != nil {
-		panic(err)
+		e(err, "failed to fetch the item category for the first berry")
+		return
 	}
 
-	fmt.Println("and it goes in the", category.Pocket.Name, "pocket")
+	i("and it goes in the %s pocket", category.Pocket.Name)
 }

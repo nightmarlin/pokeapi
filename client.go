@@ -36,9 +36,9 @@ type Client struct {
 }
 
 type NewClientOpts struct {
-	HTTPClient  *http.Client // Set the HTTP client to use when making requests.
-	Cache       Cache        // Provide a Cache for use in requests.
-	PokeAPIRoot string       // Change the base PokéAPI URL to make requests to.
+	HTTPClient  *http.Client // Set the HTTP client to use when making lookups.
+	Cache       Cache        // Provide a Cache for use in lookups.
+	PokeAPIRoot string       // Change the base PokéAPI URL to make lookups to.
 }
 
 // A CacheLookup represents a look-up operation & allows the cache to be
@@ -223,7 +223,8 @@ type noCache struct{}
 
 func (noCache) Lookup(context.Context, string) CacheLookup { return noCacheLookup{} }
 
-// do performs a type-safe http GET operation, using the Client's cache.
+// do performs a type-safe http GET operation, using the Client's cache &
+// http.Client.
 func do[T any](ctx context.Context, c *Client, path string, values url.Values) (T, error) {
 	var zero T
 
