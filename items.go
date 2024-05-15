@@ -1,8 +1,8 @@
 package pokeapi
 
-type ItemSprites struct {
-	Default string `json:"default"`
-}
+import (
+	"github.com/nightmarlin/pokeapi/sprites"
+)
 
 type ItemHolderPokemonVersionDetail struct {
 	Rarity  int                       `json:"rarity"`
@@ -27,7 +27,7 @@ type Item struct {
 	FlavorTextEntries []VersionGroupFlavorText          `json:"flavor_text_entries"`
 	GameIndices       []GenerationGameIndex             `json:"game_indices"`
 	Names             []Name                            `json:"names"`
-	Sprites           ItemSprites                       `json:"sprites"`
+	Sprites           sprites.Item                      `json:"sprites"`
 	HeldByPokemon     []ItemHolderPokemon               `json:"held_by_pokemon"`
 	BabyTriggerFor    *APIResource[EvolutionChain]      `json:"baby_trigger_for"`
 	Machines          []MachineVersionDetail            `json:"machines"`

@@ -3,6 +3,8 @@ package pokeapi
 import (
 	"context"
 	"fmt"
+
+	"github.com/nightmarlin/pokeapi/sprites"
 )
 
 type AbilityEffectChange struct {
@@ -169,22 +171,6 @@ type PokemonStat struct {
 	BaseStat int                    `json:"base_stat"`
 }
 
-// PokemonSprites are a set of URLs pointing to where the sprite images are
-// hosted.
-type PokemonSprites struct {
-	// TODO: why is this API resource so ridiculously complex.
-	// Come back to it.
-
-	FrontDefault     string  `json:"front_default"`
-	FrontShiny       string  `json:"front_shiny"`
-	BackDefault      string  `json:"back_default"`
-	BackShiny        string  `json:"back_shiny"`
-	FrontFemale      *string `json:"front_female"`
-	FrontShinyFemale *string `json:"front_shiny_female"`
-	BackFemale       *string `json:"back_female"`
-	BackShinyFemale  *string `json:"back_shiny_female"`
-}
-
 // PokemonCries are a set of URLs pointing to the sound files for the Pokemon's
 // cry.
 type PokemonCries struct {
@@ -206,7 +192,7 @@ type Pokemon struct {
 	HeldItems      []PokemonHeldItem                `json:"held_items"` // A list of items this Pokémon may be holding when encountered.
 	Moves          []PokemonMove                    `json:"moves"`
 	PastTypes      []PokemonTypePast                `json:"past_types"`
-	Sprites        PokemonSprites                   `json:"sprites"`
+	Sprites        sprites.Pokemon                  `json:"sprites"`
 	Cries          PokemonCries                     `json:"cries"`
 	Species        NamedAPIResource[PokemonSpecies] `json:"species"`
 	Stats          []PokemonStat                    `json:"stats"`
@@ -257,17 +243,6 @@ type PokemonColor struct {
 	PokemonSpecies []NamedAPIResource[PokemonSpecies] `json:"pokemon_species"`
 }
 
-type PokemonFormSprites struct {
-	FrontDefault     string  `json:"front_default"`
-	FrontShiny       string  `json:"front_shiny"`
-	BackDefault      string  `json:"back_default"`
-	BackShiny        string  `json:"back_shiny"`
-	FrontFemale      *string `json:"front_female"`
-	FrontShinyFemale *string `json:"front_shiny_female"`
-	BackFemale       *string `json:"back_female"`
-	BackShinyFemale  *string `json:"back_shiny_female"`
-}
-
 type PokemonForm struct {
 	NamedIdentifier
 
@@ -278,7 +253,7 @@ type PokemonForm struct {
 	IsMega       bool                           `json:"is_mega"`
 	FormName     string                         `json:"form_name"`
 	Types        []PokemonFormType              `json:"types"`
-	Sprites      PokemonFormSprites             `json:"sprites"`
+	Sprites      sprites.PokemonForm            `json:"sprites"`
 	VersionGroup NamedAPIResource[VersionGroup] `json:"version_group"` // The version group this Pokémon form was introduced in.
 	Names        []Name                         `json:"names"`         // The form specific full name of this Pokémon form, or empty if the form does not have a specific name.
 	FormNames    []Name                         `json:"form_names"`    // The form specific full name of this Pokémon form, or empty if the form does not have a specific name.
