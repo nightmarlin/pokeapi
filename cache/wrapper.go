@@ -7,6 +7,9 @@ import (
 	"github.com/nightmarlin/pokeapi"
 )
 
+// The Wrapper cache wraps a standard get/put cache and converts it to the
+// transactional pokeapi.Cache interface. It's useful if you want to make use of
+// the pokeapi.Client's concurrency guarantees.
 type Wrapper struct {
 	getFn func(ctx context.Context, url string) (any, bool)
 	putFn func(ctx context.Context, url string, value any)
@@ -14,6 +17,21 @@ type Wrapper struct {
 	ongoing sync.Map
 }
 
+// NewWrapper accepts the Get and Put (or equivalent) method references of the
+// cache it wraps and returns a pokeapi.Cache that loads and stores values
+// from/to that cache.
+//
+// Example usage:
+//
+//	r := NewRedisCache(redisConn, defaultTTL)
+//	c := pokeapi.Client(
+//		&pokeapi.NewClientOpts{
+//			Cache: cache.NewWrapper(r.Get, r.Put),
+//		}
+//	)
+//
+// It's worth noting that the url passed will be the raw url, query parameters
+// included. Advanced cache implementations may choose to make use of this.
 func NewWrapper(
 	getFn func(ctx context.Context, url string) (any, bool),
 	putFn func(ctx context.Context, url string, value any),
