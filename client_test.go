@@ -14,19 +14,20 @@ func Test_do(t *testing.T) {
 	t.Parallel()
 
 	t.Run(
-		"writes to cache on miss",
+		"fetches value on cache miss",
 		func(t *testing.T) {
 			t.Parallel()
 
-			const pkPath = "/pokemon/pachirisu"
+			const pkPath = "/pokemon/togedemaru"
+			var expectRes = echoResp{Path: pkPath}
 
 			given(t, echoHandler).
 				get(pkPath).
 				verify(
 					thatThereWasNoError,
-					thatResponseIs(echoResp{Path: pkPath}),
+					thatResponseIs(expectRes),
 					thatNCacheLookupsOccurred(1),
-					thatCacheWasWrittenTo(pkPath, echoResp{Path: pkPath}),
+					thatCacheWasWrittenTo(pkPath, expectRes),
 				)
 		},
 	)
@@ -37,34 +38,15 @@ func Test_do(t *testing.T) {
 			t.Parallel()
 
 			const pkPath = "/pokemon/togedemaru"
+			var expectRes = echoResp{Path: pkPath}
 
-			given(t, http.NotFound, withCachedValue(pkPath, echoResp{Path: pkPath})).
+			given(t, http.NotFound, withCachedValue(pkPath, expectRes)).
 				get(pkPath).
 				verify(
 					thatThereWasNoError,
-					thatResponseIs(echoResp{Path: pkPath}),
+					thatResponseIs(expectRes),
 					thatNCacheLookupsOccurred(1),
 					thatCacheWasNotWrittenTo,
-				)
-		},
-	)
-
-	t.Run(
-		"treats type mismatch as a cache miss",
-		func(t *testing.T) {
-			t.Parallel()
-
-			type notResp struct{}
-
-			const pkPath = "/pokemon/emolga"
-
-			given(t, echoHandler, withCachedValue(pkPath, notResp{})).
-				get(pkPath).
-				verify(
-					thatThereWasNoError,
-					thatResponseIs(echoResp{Path: pkPath}),
-					thatNCacheLookupsOccurred(1),
-					thatCacheWasWrittenTo(pkPath, echoResp{Path: pkPath}),
 				)
 		},
 	)
@@ -79,7 +61,7 @@ func Test_do(t *testing.T) {
 			given(t, http.NotFound).
 				get(pkPath).
 				verify(
-					thatErrorIs(HTTPErr{Status: "404 Not Found", StatusCode: http.StatusNotFound}),
+					thatErrorIs(ErrNotFound),
 					thatNCacheLookupsOccurred(1),
 					thatCacheWasNotWrittenTo,
 				)
@@ -89,38 +71,34 @@ func Test_do(t *testing.T) {
 
 // region test helpers
 
-// A recordingCache records the lookups and hydrations performed on it. it is
-// unsafe for concurrent use.
+// A recordingCache records the lookups performed on it. it is unsafe for concurrent use.
 type recordingCache struct {
-	cachedValues map[string]any
-
+	cachedValues   map[string]any
 	lookups        []string
-	hydratedValues map[string]any
+	recordedValues map[string]any
 }
 
-// A recordingCacheLookup is unsafe for concurrent use.
-type recordingCacheLookup struct {
-	url string
-	rc  *recordingCache
-}
+func (r *recordingCache) Lookup(
+	ctx context.Context,
+	url string,
+	loadOnMiss CacheLoader,
+) (any, error) {
+	r.lookups = append(r.lookups, url)
 
-func (rcl recordingCacheLookup) Value(context.Context) (any, bool) {
-	v, ok := rcl.rc.cachedValues[rcl.url]
-	return v, ok
-}
-
-func (rcl recordingCacheLookup) Close(context.Context) {}
-
-func (rcl recordingCacheLookup) Hydrate(_ context.Context, resource any) {
-	if rcl.rc.hydratedValues == nil {
-		rcl.rc.hydratedValues = make(map[string]any)
+	if v, ok := r.cachedValues[url]; ok {
+		return v, nil
 	}
-	rcl.rc.hydratedValues[rcl.url] = resource
-}
 
-func (rc *recordingCache) Lookup(_ context.Context, url string) CacheLookup {
-	rc.lookups = append(rc.lookups, url)
-	return recordingCacheLookup{url: url, rc: rc}
+	v, err := loadOnMiss(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.recordedValues == nil {
+		r.recordedValues = make(map[string]any)
+	}
+	r.recordedValues[url] = v
+	return v, nil
 }
 
 type echoResp struct {
@@ -184,7 +162,13 @@ func (s *doSUT) get(endpoint string) *doSUT {
 
 	s.resp, s.err = do[echoResp](
 		context.Background(),
-		NewClient(&NewClientOpts{Cache: &s.cache, PokeAPIRoot: s.server.URL}),
+		NewClient(
+			&ClientOpts{
+				Cache:       &s.cache,
+				PokeAPIRoot: s.server.URL,
+				HTTPClient:  s.server.Client(),
+			},
+		),
 		s.endpointToURL(endpoint),
 		nil,
 	)
@@ -240,14 +224,14 @@ func thatNCacheLookupsOccurred(n int) verifier {
 }
 
 func thatCacheWasNotWrittenTo(s *doSUT) {
-	if got := len(s.cache.hydratedValues); got != 0 {
+	if got := len(s.cache.recordedValues); got != 0 {
 		s.t.Errorf("want 0 cache writes to occur; got %d", got)
 	}
 }
 
 func thatCacheWasWrittenTo(endpoint string, wantValue any) verifier {
 	return func(s *doSUT) {
-		v, ok := s.cache.hydratedValues[s.endpointToURL(endpoint)]
+		v, ok := s.cache.recordedValues[s.endpointToURL(endpoint)]
 		if !ok {
 			s.t.Errorf("want cache write for endpoint %q, but none found", endpoint)
 		} else if v != wantValue {

@@ -16,103 +16,126 @@ import (
 
 type NewCacheFn[T pokeapi.Cache] func(size int) T
 
+// mockLoader returns a pokeapi.CacheLoader and a function that returns how many
+// times that pokeapi.CacheLoader has been called.
+func mockLoader(v any, err error) (_ pokeapi.CacheLoader, callCount func() int) {
+	var (
+		ccMux       sync.RWMutex
+		callCounter int
+	)
+
+	return func(context.Context) (any, error) {
+			defer ccMux.Unlock()
+			ccMux.Lock()
+			callCounter += 1
+			return v, err
+		},
+		func() int {
+			defer ccMux.RUnlock()
+			ccMux.RLock()
+			return callCounter
+		}
+}
+
 func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 	t.Run(
 		"lookup on an empty cache misses",
 		func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
-			cache := newCache(1)
+			const (
+				value = "a normal type pokemon"
+			)
 
-			lookup := cache.Lookup(ctx, "https://pokapi.co/api/v2/pokemon/gumshoos")
-			defer lookup.Close(ctx)
+			var (
+				ctx      = context.Background()
+				cache    = newCache(1)
+				ml, cc   = mockLoader(value, nil)
+				res, err = cache.Lookup(ctx, "https://pokeapi.co/api/v2/pokemon/gumshoos", ml)
+			)
 
-			if v, ok := lookup.Value(ctx); ok || v != nil {
-				t.Errorf("want lookup.Value() to return (nil, false); got (%v, %T)", v, ok)
+			if err != nil {
+				t.Errorf("want no error; got %v", err)
+			}
+			if calls := cc(); calls != 1 {
+				t.Errorf("want loader to be called 1 time; got %d times", calls)
+			}
+			if res != value {
+				t.Errorf("want returned value %v; got %v", value, res)
 			}
 		},
 	)
 
 	t.Run(
-		"lookup after hydration returns value",
+		"lookup after load returns value without another load",
 		func(t *testing.T) {
 			t.Parallel()
 
 			const (
-				resource = "https://pokapi.co/api/v2/pokemon/yamask"
+				resource = "https://pokeapi.co/api/v2/pokemon/yamask"
 				value    = "a ghost-type pokemon"
 			)
 
-			ctx := context.Background()
-			cache := newCache(1)
+			var (
+				ctx    = context.Background()
+				cache  = newCache(1)
+				ml, cc = mockLoader(value, nil)
 
-			cache.Lookup(ctx, resource).Hydrate(ctx, value)
-
-			lookup := cache.Lookup(ctx, resource)
-			defer lookup.Close(ctx)
-
-			if v, ok := lookup.Value(ctx); !ok || value != v {
-				t.Errorf(`want lookup.Value() to return (%q, true); got (%v, %T)`, value, value, ok)
-			}
-		},
-	)
-
-	t.Run(
-		"multiple hydration of same lookup returns first value",
-		func(t *testing.T) {
-			t.Parallel()
-			const (
-				resource = "https://pokapi.co/api/v2/pokemon/stunfisk"
-				valueA   = "an electric-type pokemon"
-				valueB   = "a ground-type pokemon"
+				_, _     = cache.Lookup(ctx, resource, ml)
+				res, err = cache.Lookup(ctx, resource, ml)
 			)
 
-			ctx := context.Background()
-			cache := newCache(1)
-
-			lookup := cache.Lookup(ctx, resource)
-			lookup.Hydrate(ctx, valueA) // only the first Hydrate() call should have an effect
-			lookup.Hydrate(ctx, valueB)
-			lookup.Close(ctx)
-
-			lookup = cache.Lookup(ctx, resource)
-			defer lookup.Close(ctx)
-
-			if got, ok := lookup.Value(ctx); !ok || valueA != got {
-				t.Errorf(`want lookup.Value() to return (%q, true); got (%v, %T)`, valueA, got, ok)
+			if err != nil {
+				t.Errorf("want no error; got %v", err)
+			}
+			if calls := cc(); calls != 1 {
+				t.Errorf("want loader to be called 1 time; got %d times", calls)
+			}
+			if res != value {
+				t.Errorf("want returned value %v; got %v", value, res)
 			}
 		},
 	)
 
 	t.Run(
-		"hydration of lookup after close has no effect",
+		"cached value is unchanged by other lookups",
 		func(t *testing.T) {
 			t.Parallel()
 
 			const (
-				resource = "https://pokapi.co/api/v2/pokemon/surskit"
-				value    = "a water-type pokemon"
+				resourceA = "https://pokeapi.co/api/v2/pokemon/serperior"
+				valueA    = "a grass-type pokemon"
+				resourceB = "https://pokeapi.co/api/v2/pokemon/dreepy"
+				valueB    = "a dragon-type pokemon"
 			)
 
-			ctx := context.Background()
-			cache := newCache(1)
+			var (
+				ctx   = context.Background()
+				cache = newCache(2)
 
-			lookup := cache.Lookup(ctx, resource)
-			lookup.Close(ctx)
-			lookup.Hydrate(ctx, value) // hydrate after close should have no effect
+				mlA, ccA = mockLoader(valueA, nil)
+				mlB, ccB = mockLoader(valueB, nil)
+			)
 
-			lookup = cache.Lookup(ctx, resource) // this lookup should miss
-			defer lookup.Close(ctx)
+			_, _ = cache.Lookup(ctx, resourceA, mlA)
+			_, _ = cache.Lookup(ctx, resourceB, mlB)
 
-			if got, ok := lookup.Value(ctx); ok {
-				t.Errorf(`want lookup.Value() to return (nil, false); got (%v, %T)`, got, ok)
+			res, _ := cache.Lookup(ctx, resourceA, mlA)
+
+			if res != valueA {
+				t.Errorf(`want returned value for resource-a to be %q; got %v`, valueA, res)
+			}
+			if callsA := ccA(); callsA != 1 {
+				t.Errorf("want resource-a loader to be called 1 time; got %d times", callsA)
+			}
+			if callsB := ccB(); callsB != 1 {
+				t.Errorf("want resource-b loader to be called 1 time; got %d times", callsB)
 			}
 		},
 	)
 
 	t.Run(
-		"for a cache of size N, hydration of N resources means no lookups for those resources miss",
+		"for a cache of size N, lookup of N resources means no subsequent lookups for those resources miss",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -132,16 +155,16 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 						cache := newCache(entry.N)
 
 						for i := range entry.N {
-							cache.Lookup(ctx, resource(i)).Hydrate(ctx, i)
+							ml, _ := mockLoader(i, nil)
+							_, _ = cache.Lookup(ctx, resource(i), ml)
 						}
 
 						var misses int
 						for i := range entry.N {
-							lookup := cache.Lookup(ctx, resource(i))
-							if _, ok := lookup.Value(ctx); !ok {
-								misses++
-							}
-							lookup.Close(ctx)
+							ml, cc := mockLoader(i, nil)
+							_, _ = cache.Lookup(ctx, resource(i), ml)
+
+							misses += cc()
 						}
 
 						if misses != 0 {
@@ -153,61 +176,9 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 		},
 	)
 
-	t.Run(
-		"lookup after multiple hydration returns most recent value",
-		func(t *testing.T) {
-			t.Parallel()
-
-			const (
-				resource    = "https://pokapi.co/api/v2/pokemon/aegislash"
-				firstValue  = "a ghost-type pokemon"
-				secondValue = "a steel-type pokemon"
-			)
-
-			ctx := context.Background()
-			cache := newCache(1)
-
-			cache.Lookup(ctx, resource).Hydrate(ctx, firstValue)
-			cache.Lookup(ctx, resource).Hydrate(ctx, secondValue)
-
-			lookup := cache.Lookup(ctx, resource)
-			defer lookup.Close(ctx)
-
-			if v, ok := lookup.Value(ctx); !ok || v != secondValue {
-				t.Errorf(`want lookup.Value() to return (%q, true); got (%v, %T)`, secondValue, v, ok)
-			}
-		},
-	)
-
-	t.Run(
-		"cached value is unchanged by other lookups",
-		func(t *testing.T) {
-			t.Parallel()
-
-			const (
-				resourceA = "https://pokapi.co/api/v2/pokemon/serperior"
-				valueA    = "a grass-type pokemon"
-				resourceB = "https://pokapi.co/api/v2/pokemon/dreepy"
-				valueB    = "a dragon-type pokemon"
-			)
-
-			ctx := context.Background()
-			cache := newCache(2)
-
-			cache.Lookup(ctx, resourceA).Hydrate(ctx, valueA)
-			cache.Lookup(ctx, resourceB).Hydrate(ctx, valueB)
-
-			lookup := cache.Lookup(ctx, resourceA)
-			defer lookup.Close(ctx)
-
-			if v, ok := lookup.Value(ctx); !ok || v != valueA {
-				t.Errorf(`want lookup.Value() to return (%q, true); got (%v, %T)`, valueA, v, ok)
-			}
-		},
-	)
-
 	// the eviction strategy is not strongly defined, so this is how we can test
-	// that cache evictions are occurring
+	// that cache evictions are correctly occurring, and that caches don't cache
+	// error responses.
 	t.Run(
 		"for a cache of size N, hydrating M (M > N) values means M-N cache lookups for the same resources miss",
 		func(t *testing.T) {
@@ -215,7 +186,7 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 
 			const dummyValue = "a ???-type pokemon"
 			resourceName := func(i int) string {
-				return fmt.Sprintf("https://pokapi.co/api/v2/pokemon/%d", i)
+				return fmt.Sprintf("https://pokeapi.co/api/v2/pokemon/%d", i)
 			}
 
 			for _, entry := range []struct{ N, M int }{
@@ -234,23 +205,24 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 					func(t *testing.T) {
 						t.Parallel()
 
-						ctx := context.Background()
-						cache := newCache(entry.N)
+						var (
+							ctx   = context.Background()
+							cache = newCache(entry.N)
+							ml, _ = mockLoader(dummyValue, nil)
+						)
 
 						for i := range m {
-							cache.Lookup(ctx, resourceName(i)).Hydrate(ctx, dummyValue)
+							_, _ = cache.Lookup(ctx, resourceName(i), ml)
 						}
 
-						var gotMisses int
+						// reset loader: fail on load to prevent more values being cached
+						ml, cc := mockLoader(nil, fmt.Errorf("brocken"))
+
 						for i := range m {
-							lookup := cache.Lookup(ctx, resourceName(i))
-							if _, ok := lookup.Value(ctx); !ok {
-								gotMisses++
-							}
-							lookup.Close(ctx)
+							_, _ = cache.Lookup(ctx, resourceName(i), ml)
 						}
 
-						if wantMisses != gotMisses {
+						if gotMisses := cc(); wantMisses != gotMisses {
 							t.Errorf("want %d cache misses; got %d", wantMisses, gotMisses)
 						}
 					},
@@ -263,45 +235,34 @@ func TestCache[C pokeapi.Cache](t *testing.T, newCache NewCacheFn[C]) {
 	// note: code that could fail this test may not always. be sure to enable the
 	// race detector and run the tests with -test.count.
 	t.Run(
-		"cache supports concurrent lookups on the same resource - only the first cache lookup should miss",
+		"cache supports concurrent lookups on the same resource - only the one cache lookup should miss",
 		func(t *testing.T) {
 			t.Parallel()
 			const (
-				resource = "https://pokapi.co/api/v2/pokemon/tinkaton"
+				resource = "https://pokeapi.co/api/v2/pokemon/tinkaton"
 				value    = "a fairy-type pokemon"
 			)
 
-			ctx := context.Background()
-			c := newCache(1)
-
 			var (
-				wg        sync.WaitGroup
-				missesMux sync.Mutex
-				misses    int
+				ctx = context.Background()
+				c   = newCache(1)
+
+				wg     sync.WaitGroup
+				ml, cc = mockLoader(value, nil)
 			)
 
-			for range 10 {
+			for range 100 {
 				wg.Add(1)
 
 				go func() {
 					defer wg.Done()
-
-					lookup := c.Lookup(ctx, resource)
-					defer lookup.Close(ctx)
-
-					if _, ok := lookup.Value(ctx); !ok {
-						lookup.Hydrate(ctx, value)
-
-						missesMux.Lock()
-						misses++
-						missesMux.Unlock()
-					}
+					_, _ = c.Lookup(ctx, resource, ml)
 				}()
 			}
 
 			wg.Wait()
 
-			if misses != 1 {
+			if misses := cc(); misses != 1 {
 				t.Errorf("wanted only the first cache lookup to miss; got %d misses", misses)
 			}
 		},

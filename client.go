@@ -13,7 +13,7 @@ import (
 //go:generate go run cmd/gettergen/gettergen.go -- $GOFILE "getters.gen.go"
 
 // The DefaultPokeAPIRoot is the standard URL for PokéAPI. An alternative URL
-// can be provided via [NewClientOpts.PokeAPIRoot] for use with alternative
+// can be provided via [ClientOpts.PokeAPIRoot] for use with alternative
 // builds of the API.
 const DefaultPokeAPIRoot = `https://pokeapi.co/api/v2`
 
@@ -35,47 +35,29 @@ type Client struct {
 	pokeAPIRoot string
 }
 
-type NewClientOpts struct {
+type ClientOpts struct {
 	HTTPClient  *http.Client // Set the HTTP client to use when making lookups.
 	Cache       Cache        // Provide a Cache for use in lookups.
 	PokeAPIRoot string       // Change the base PokéAPI URL to make lookups to.
 }
 
-// A CacheLookup represents a look-up operation & allows the cache to be
-// back-filled with the result (via Hydrate).
-//
-// One of Hydrate or Close must be called after opening a CacheLookup, and it
-// is always safe to call Close repeatedly or after a call to Hydrate. Once one
-// of these two methods is called, the other will not have an effect.
-//
-// Once Hydrate or Close is called, Value is permitted to change the value it
-// returns to any other value, and should not be called.
-type CacheLookup interface {
-	// Value returns the initial result of the lookup. It should not be called after Hydrate or Close.
-	Value(ctx context.Context) (_ any, ok bool)
-	// Hydrate back-fills the cache with the value and closes the CacheLookup.
-	// Calling Hydrate after Close is a no-op.
-	Hydrate(ctx context.Context, resource any)
-	// Close closes the CacheLookup, freeing up any used resources. It is always
-	// safe to call.
-	Close(ctx context.Context)
-}
+// A CacheLoader is called on cache misses to retrieve the value of the resource
+// from an external source.
+type CacheLoader func(context.Context) (any, error)
 
 // A Cache allows the Client to Lookup a URL and retrieve the corresponding
-// resource if it has been fetched before.
-//
-// The Lookup method returns a CacheLookup, which behaves similarly to a sql.Tx.
-//
-// A Cache may block opening a new CacheLookup until the previous one is closed,
-// so callers must always ensure to call CacheLookup.Close (typically via defer).
+// resource if it has been fetched before. `loadOnMiss` should only be called if
+// the cache does not contain a value for the requested `url`. It is
+// recommended (but not required) that concurrent lookups for the same `url`
+// only make one call to a `loadOnMiss` between them.
 type Cache interface {
-	Lookup(ctx context.Context, url string) CacheLookup
+	Lookup(ctx context.Context, url string, loadOnMiss CacheLoader) (any, error)
 }
 
-// NewClient creates and returns a new Client with the provided NewClientOpts
+// NewClient creates and returns a new Client with the provided ClientOpts
 // applied. It is safe to use as NewClient(nil), but you are expected to do your
 // own caching.
-func NewClient(opts *NewClientOpts) *Client {
+func NewClient(opts *ClientOpts) *Client {
 	c := Client{client: http.DefaultClient, pokeAPIRoot: DefaultPokeAPIRoot, cache: noCache{}}
 
 	if opts != nil {
@@ -211,61 +193,61 @@ func (p *Page[R, T]) GetPrevious(ctx context.Context, client *Client) (*Page[R, 
 	return do[*Page[R, T]](ctx, client, *p.Previous, nil)
 }
 
-type noCacheLookup struct{}
-
-func (noCacheLookup) Hydrate(context.Context, any)      {}
-func (noCacheLookup) Close(context.Context)             {}
-func (noCacheLookup) Value(context.Context) (any, bool) { return nil, false }
-
 // The noCache is the default Cache implementation used by a Client. While it is
 // valid for use, it does not perform any actual caching.
 type noCache struct{}
 
-func (noCache) Lookup(context.Context, string) CacheLookup { return noCacheLookup{} }
+func (noCache) Lookup(
+	ctx context.Context,
+	_ string,
+	loader CacheLoader,
+) (any, error) {
+	return loader(ctx)
+}
+
+// zero creates and returns the zero value of T.
+func zero[T any]() (z T) { return }
 
 // do performs a type-safe http GET operation, using the Client's cache &
 // http.Client.
 func do[T any](ctx context.Context, c *Client, path string, values url.Values) (T, error) {
-	var zero T
+	res, err := c.cache.Lookup(
+		ctx,
+		path,
+		func(ctx context.Context) (any, error) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+			if err != nil {
+				return nil, fmt.Errorf("creating request: %w", err)
+			}
+			req.Header.Set("Accept", "application/json")
 
-	cachedValue := c.cache.Lookup(ctx, path)
-	defer cachedValue.Close(ctx)
+			if len(values) != 0 {
+				qry := req.URL.Query()
+				for field, val := range values {
+					qry[field] = val
+				}
+				req.URL.RawQuery = qry.Encode()
+			}
 
-	if v, ok := cachedValue.Value(ctx); ok {
-		res, isT := v.(T) // unlikely, but handle just in case
-		if isT {
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return nil, fmt.Errorf("performing request: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusOK {
+				return nil, NewHTTPError(resp)
+			}
+
+			var res T
+			if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+				return nil, fmt.Errorf("decoding json response: %w", err)
+			}
 			return res, nil
-		}
-	}
+		},
+	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return zero, fmt.Errorf("creating request: %w", err)
+		return zero[T](), err
 	}
-	req.Header.Set("Accept", "application/json")
-
-	if len(values) != 0 {
-		qry := req.URL.Query()
-		for field, val := range values {
-			qry[field] = val
-		}
-		req.URL.RawQuery = qry.Encode()
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return zero, fmt.Errorf("performing request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return zero, HTTPErr{Status: resp.Status, StatusCode: resp.StatusCode}
-	}
-
-	var res T
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return zero, fmt.Errorf("decoding json response: %w", err)
-	}
-
-	cachedValue.Hydrate(ctx, res)
-	return res, nil
+	return res.(T), nil
 }

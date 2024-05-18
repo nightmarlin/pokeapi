@@ -2,7 +2,8 @@ package cache
 
 import (
 	"context"
-	"sync"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/nightmarlin/pokeapi"
 )
@@ -14,7 +15,7 @@ type Wrapper struct {
 	getFn func(ctx context.Context, url string) (any, bool)
 	putFn func(ctx context.Context, url string, value any)
 
-	ongoing sync.Map
+	ongoing singleflight.Group
 }
 
 // NewWrapper accepts the Get and Put (or equivalent) method references of the
@@ -25,7 +26,7 @@ type Wrapper struct {
 //
 //	r := NewRedisCache(redisConn, defaultTTL)
 //	c := pokeapi.Client(
-//		&pokeapi.NewClientOpts{
+//		&pokeapi.ClientOpts{
 //			Cache: cache.NewWrapper(r.Get, r.Put),
 //		}
 //	)
@@ -39,64 +40,30 @@ func NewWrapper(
 	return &Wrapper{getFn: getFn, putFn: putFn}
 }
 
-func (w *Wrapper) Lookup(ctx context.Context, url string) pokeapi.CacheLookup {
-	for {
-		// spin: attempt to acquire lock on individual url.
-		// todo: reduce spins?
+func (w *Wrapper) Lookup(
+	ctx context.Context,
+	url string,
+	loadOnMiss pokeapi.CacheLoader,
+) (any, error) {
+	res, err, _ := w.ongoing.Do(
+		url,
+		func() (any, error) {
+			if v, ok := w.getFn(ctx, url); ok {
+				return v, nil
+			}
 
-		_, urlIsLocked := w.ongoing.LoadOrStore(url, struct{}{})
-		if !urlIsLocked {
-			break
-		}
-	}
+			v, err := loadOnMiss(ctx)
+			if err != nil {
+				return nil, err
+			}
 
-	v, hasValue := w.getFn(ctx, url)
-	return &wrapperCacheLookup{
-		value:     v,
-		hasValue:  hasValue,
-		putFn:     func(ctx context.Context, value any) { w.putFn(ctx, url, value) },
-		cleanupFn: func() { w.ongoing.Delete(url) },
-	}
-}
-
-type wrapperCacheLookup struct {
-	mux  sync.RWMutex
-	once sync.Once
-
-	value    any
-	hasValue bool
-
-	putFn     func(ctx context.Context, value any)
-	cleanupFn func()
-}
-
-func (w *wrapperCacheLookup) Value(_ context.Context) (_ any, ok bool) {
-	defer w.mux.RUnlock()
-	w.mux.RLock()
-	return w.value, w.hasValue
-}
-
-func (w *wrapperCacheLookup) cleanup() {
-	w.cleanupFn()
-	w.value = nil
-	w.hasValue = false
-	w.putFn = nil
-	w.cleanupFn = nil
-}
-
-func (w *wrapperCacheLookup) Hydrate(ctx context.Context, resource any) {
-	defer w.mux.Unlock()
-	w.mux.Lock()
-	w.once.Do(
-		func() {
-			w.putFn(ctx, resource)
-			w.cleanup()
+			w.putFn(ctx, url, v)
+			return v, nil
 		},
 	)
-}
 
-func (w *wrapperCacheLookup) Close(_ context.Context) {
-	defer w.mux.Unlock()
-	w.mux.Lock()
-	w.once.Do(w.cleanup)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }

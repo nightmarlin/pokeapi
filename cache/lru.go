@@ -3,11 +3,18 @@ package cache
 import (
 	"context"
 	"sync"
+	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/nightmarlin/pokeapi"
 )
 
-const defaultLRUCacheSize = 50
+const (
+	defaultLRUCacheSize        = 50
+	defaultLRUCacheTTL         = time.Duration(0)
+	defaultLRUCacheExpiryDelay = 24 * 7 * time.Hour
+)
 
 // LRU implements a Least-Recently-Used pokeapi.Cache. An LRU cache is a
 // queue-like structure, with some extra semantics on Lookup & a map to allow
@@ -29,30 +36,72 @@ const defaultLRUCacheSize = 50
 type LRU struct {
 	mux sync.Mutex
 
+	ttl         time.Duration    // how long cache entries should be stored before eviction
+	clock       func() time.Time // get the current time
+	expiryDelay time.Duration    // how often to wait between expiry runs
+	lastExpiry  time.Time        // when the last expiry was run
+
 	capacity int                       // the maximum size of the cache
 	length   int                       // the current number of values in the cache
 	youngest *lruCacheEntry            // the most recently accessed/inserted cache item
 	oldest   *lruCacheEntry            // the next cache item to evict
 	entries  map[string]*lruCacheEntry // lookup map for O(1) lookups
 
-	ongoing sync.Map // ongoing implements a key-level lock - no lookups for the same key may occur in parallel
+	ongoing singleflight.Group
+}
+
+type LRUOpts struct {
+	Size int // The maximum capacity of the cache. Default 50.
+
+	Clock func() time.Time // Provide a custom time function - useful for testing
+	TTL   time.Duration    // How long cached entries should be stored for. Default 0 (forever)
+
+	// How long to wait between expiry runs. Default ~1 week. If set to 0, will
+	// check for expired keys every Lookup. Only applies if TTL != 0.
+	ExpiryDelay *time.Duration
 }
 
 // NewLRU constructs a new LRU cache for use. It can hold at most `size`
 // entries, and once that limit is exceeded the least-recently-used (read or
 // written) cache entry will be evicted. If `size` <= 0, the default cache size
 // of 50 will be used.
-func NewLRU(size int) *LRU {
-	if size <= 0 {
-		size = defaultLRUCacheSize
+// A TTL may also be provided, and when it is expired cached items will be
+// evicted after the first call to Lookup after they become too old.
+func NewLRU(opts *LRUOpts) *LRU {
+	cacheSize := defaultLRUCacheSize
+
+	lru := LRU{
+		ttl:         defaultLRUCacheTTL,
+		expiryDelay: defaultLRUCacheExpiryDelay,
+		clock:       func() time.Time { return time.Now().UTC() },
 	}
 
-	return &LRU{capacity: size, entries: make(map[string]*lruCacheEntry, size)}
+	if opts != nil {
+		if opts.Size > 0 {
+			cacheSize = opts.Size
+		}
+		if opts.TTL > 0 {
+			lru.ttl = opts.TTL
+		}
+		if opts.Clock != nil {
+			lru.clock = opts.Clock
+		}
+		if opts.ExpiryDelay != nil && *opts.ExpiryDelay >= 0 {
+			lru.expiryDelay = *opts.ExpiryDelay
+		}
+	}
+
+	// only allocate the map once we know how big it needs to be
+	lru.capacity = cacheSize
+	lru.entries = make(map[string]*lruCacheEntry, cacheSize)
+	return &lru
 }
 
 type lruCacheEntry struct {
 	url   string
 	value any
+
+	expireAt time.Time
 
 	older   *lruCacheEntry
 	younger *lruCacheEntry
@@ -88,7 +137,12 @@ func (lru *LRU) extractEntry(e *lruCacheEntry) {
 // cache. if insertion caused the cache length to exceed its capacity,
 // extraneous elements are dropped from the cache.
 func (lru *LRU) insertValue(url string, value any) {
-	e := &lruCacheEntry{url: url, value: value, older: lru.youngest}
+	e := &lruCacheEntry{
+		url:      url,
+		value:    value,
+		older:    lru.youngest,
+		expireAt: lru.clock().Add(lru.ttl),
+	}
 
 	if lru.youngest != nil {
 		lru.youngest.younger = e
@@ -123,114 +177,74 @@ func (lru *LRU) insertValue(url string, value any) {
 	}
 }
 
-func (lru *LRU) Lookup(_ context.Context, url string) pokeapi.CacheLookup {
-	// 1. acquire lock to process url
-	//   - ensures two concurrent lookups for the same url are ordered, so work is never duplicated
-	// 2. acquire lock to modify cache
-	// 3. if url already in cache, mark it as most-recently-used
-	// 4. return lookup with ability to insert resource & release the url-level lock
+func (lru *LRU) Lookup(
+	ctx context.Context,
+	url string,
+	loadOnMiss pokeapi.CacheLoader,
+) (any, error) {
+	res, err, _ := lru.ongoing.Do(
+		"url",
+		func() (any, error) {
+			lru.mux.Lock()
 
-	for {
-		// spin: attempt to acquire lock on individual url.
-		// todo: reduce spins?
+			if e := lru.entries[url]; e != nil {
+				// bump entry to top of list
+				lru.extractEntry(e)
+				lru.insertValue(url, e.value)
 
-		_, urlIsLocked := lru.ongoing.LoadOrStore(url, struct{}{})
-		if !urlIsLocked {
-			break
-		}
-	}
+				lru.mux.Unlock()
+				return e.value, nil
+			}
 
-	lru.mux.Lock()
-	defer lru.mux.Unlock()
+			lru.mux.Unlock()
 
-	var (
-		value    any
-		hasValue bool
-	)
+			res, err := loadOnMiss(ctx)
+			if err != nil {
+				return nil, err
+			}
 
-	if e := lru.entries[url]; e != nil {
-		value = e.value
-		hasValue = true
+			lru.mux.Lock()
 
-		// bump entry to top of list
-		lru.extractEntry(e)
-		lru.insertValue(url, value)
+			if e, ok := lru.entries[url]; ok {
+				lru.extractEntry(e)
+			}
 
-		// clean up references
-		e.value = nil
-	}
+			lru.insertValue(url, res)
 
-	return &lruLookup{
-		hasValue:  hasValue,
-		value:     value,
-		putFn:     func(resource any) { lru.Put(url, resource) },
-		cleanupFn: func() { lru.ongoing.Delete(url) },
-	}
-}
-
-// Put inserts an item into the cache & unlocks lookups waiting on that
-// resource.
-func (lru *LRU) Put(url string, resource any) {
-	defer lru.mux.Unlock()
-	lru.mux.Lock()
-
-	// 1. if entry already in list, remove it
-	// 2. insert entry at top of list
-	// 3. if list length now exceeds capacity, eject the oldest item(s)
-
-	if e, ok := lru.entries[url]; ok {
-		lru.extractEntry(e)
-		e.value = nil
-	}
-
-	lru.insertValue(url, resource)
-}
-
-type lruLookup struct {
-	mux  sync.RWMutex
-	once sync.Once
-
-	hasValue bool
-	value    any
-
-	// insert (new) resource value on Hydrate.
-	putFn func(resource any)
-
-	// release url on Close or Hydrate. must always be called, and when called must be after putFn
-	cleanupFn func()
-}
-
-func (l *lruLookup) Value(context.Context) (_ any, ok bool) {
-	defer l.mux.RUnlock()
-	l.mux.RLock()
-	return l.value, l.hasValue
-}
-
-// cleanup closes the lruLookup and removes any resources it is using.
-func (l *lruLookup) cleanup() {
-	l.cleanupFn()
-	l.hasValue = false
-	l.value = nil
-	l.putFn = nil
-	l.cleanupFn = nil
-}
-
-func (l *lruLookup) Hydrate(_ context.Context, resource any) {
-	defer l.mux.Unlock()
-	l.mux.Lock()
-
-	l.once.Do(
-		func() {
-			l.putFn(resource)
-			l.cleanup()
+			lru.mux.Unlock()
+			return res, nil
 		},
 	)
 
+	go lru.expire() // run expiry in the background
+
+	return res, err
 }
 
-func (l *lruLookup) Close(context.Context) {
-	defer l.mux.Unlock()
-	l.mux.Lock()
+// expire scans through the LRU cache and deletes entries that were written
+// before now-ttl, as long as lru.ttl != 0.
+func (lru *LRU) expire() {
+	if lru.ttl == 0 {
+		return
+	}
 
-	l.once.Do(l.cleanup)
+	defer lru.mux.Unlock()
+	lru.mux.Lock()
+
+	now := lru.clock()
+
+	// don't run expiry if expired recently
+	if lru.lastExpiry.Add(lru.expiryDelay).After(now) {
+		return
+	}
+	lru.lastExpiry = now
+
+	for _, e := range lru.entries {
+		if e.expireAt.Before(now) {
+			// fun fact: it's safe to delete entries from a map as you iterate through
+			// that map! See https://go.dev/ref/spec#For_statements for more details.
+			lru.extractEntry(e)
+			e.value = nil
+		}
+	}
 }

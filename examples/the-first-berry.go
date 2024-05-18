@@ -30,7 +30,7 @@ func main() {
 
 	defer cancel()
 
-	c := pokeapi.NewClient(&pokeapi.NewClientOpts{Cache: cache.NewLRU(5)})
+	c := pokeapi.NewClient(&pokeapi.ClientOpts{Cache: cache.NewLRU(nil)})
 
 	berries, err := c.ListBerries(ctx, nil)
 	if err != nil {
