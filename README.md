@@ -21,7 +21,7 @@ func main() {
 
 While this is valid, the created client has no caching strategy and will use the
 `http.DefaultClient` to perform requests. To provide a caching strategy simply
-pass one in - for more details on PokéAPIs caching behaviour, see
+pass one in - for more details on PokéAPI's caching behaviour, see
 [Caching](#caching). A more useful client creation would be:
 
 ```go
@@ -72,7 +72,8 @@ should test any additional behaviours of your cache yourself, such as its
 eviction strategy or TTLs.
 
 An LRU cache that supports TTL expiry is provided out of the box, as well as a
-`Wrapper` that should be suitable for use with most cache implementations.
+`Wrapper` that should be suitable for use with most get/put-style cache
+implementations.
 
 > You're also more than welcome to set no cache and use your own implementation
 > external to the pokeapi client if that better suits your needs.

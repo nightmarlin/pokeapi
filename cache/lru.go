@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultLRUCacheSize        = 50
+	defaultLRUCacheSize        = 500
 	defaultLRUCacheTTL         = time.Duration(0)
 	defaultLRUCacheExpiryDelay = 24 * 7 * time.Hour
 )
@@ -33,6 +33,10 @@ const (
 // ensure that they are not executed in parallel - instead ensuring these
 // lookups occur one-after-another. Parallel cache lookups for multiple urls
 // will be serviced as normal.
+//
+// A TTL may be set, in which case the LRU cache will expire entries in
+// accordance with it. As key expiry briefly locks the entire cache, it is only
+// run once within a specified period. See LRUOpts.ExpiryDelay for details.
 type LRU struct {
 	mux sync.Mutex
 
@@ -51,22 +55,24 @@ type LRU struct {
 }
 
 type LRUOpts struct {
-	Size int // The maximum capacity of the cache. Default 50.
+	// The maximum capacity of the cache. Default 500.
+	Size int
 
-	Clock func() time.Time // Provide a custom time function - useful for testing
-	TTL   time.Duration    // How long cached entries should be stored for. Default 0 (forever)
+	// Provide a custom time function - useful for testing. Default time.Now().
+	Clock func() time.Time
+
+	// How long cached entries should be stored for. Default 0 (forever). Key
+	// expiry briefly locks the cache, so ExpiryDelay can be used to limit how
+	// often TTL is checked.
+	TTL time.Duration
 
 	// How long to wait between expiry runs. Default ~1 week. If set to 0, will
 	// check for expired keys every Lookup. Only applies if TTL != 0.
 	ExpiryDelay *time.Duration
 }
 
-// NewLRU constructs a new LRU cache for use. It can hold at most `size`
-// entries, and once that limit is exceeded the least-recently-used (read or
-// written) cache entry will be evicted. If `size` <= 0, the default cache size
-// of 50 will be used.
-// A TTL may also be provided, and when it is expired cached items will be
-// evicted after the first call to Lookup after they become too old.
+// NewLRU constructs a new LRU cache for use in accordance with the provided
+// LRUOpts.
 func NewLRU(opts *LRUOpts) *LRU {
 	cacheSize := defaultLRUCacheSize
 

@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: generate
+        name: generate
+        language: system
+        entry: go generate
+        pass_filenames: false
+      - id: test
+        name: test
+        language: system
+        entry: go test ./...
+        pass_filenames: false
+      - id: mod-tidy
+        name: mod-tidy
+        language: system
+        entry: go mod tidy
+        pass_filenames: false

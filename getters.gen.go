@@ -4,439 +4,487 @@ package pokeapi
 
 import "context"
 
-const AbilityResource Resource = "ability"
+const AbilityResource ResourceName[NamedAPIResource[Ability], Ability] = "ability"
 
 func (c *Client) GetAbility(ctx context.Context, ident string) (*Ability, error) {
 	return do[*Ability](ctx, c, c.getURL(AbilityResource, ident), nil)
 }
+
 func (c *Client) ListAbilities(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Ability], Ability], error) {
 	return do[*Page[NamedAPIResource[Ability], Ability]](ctx, c, c.listURL(AbilityResource), opts.urlValues())
 }
 
-const BerryResource Resource = "berry"
+const BerryResource ResourceName[NamedAPIResource[Berry], Berry] = "berry"
 
 func (c *Client) GetBerry(ctx context.Context, ident string) (*Berry, error) {
 	return do[*Berry](ctx, c, c.getURL(BerryResource, ident), nil)
 }
+
 func (c *Client) ListBerries(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Berry], Berry], error) {
 	return do[*Page[NamedAPIResource[Berry], Berry]](ctx, c, c.listURL(BerryResource), opts.urlValues())
 }
 
-const BerryFirmnessResource Resource = "berry-firmness"
+const BerryFirmnessResource ResourceName[NamedAPIResource[BerryFirmness], BerryFirmness] = "berry-firmness"
 
 func (c *Client) GetBerryFirmness(ctx context.Context, ident string) (*BerryFirmness, error) {
 	return do[*BerryFirmness](ctx, c, c.getURL(BerryFirmnessResource, ident), nil)
 }
+
 func (c *Client) ListBerryFirmnesses(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[BerryFirmness], BerryFirmness], error) {
 	return do[*Page[NamedAPIResource[BerryFirmness], BerryFirmness]](ctx, c, c.listURL(BerryFirmnessResource), opts.urlValues())
 }
 
-const BerryFlavorResource Resource = "berry-flavor"
+const BerryFlavorResource ResourceName[NamedAPIResource[BerryFlavor], BerryFlavor] = "berry-flavor"
 
 func (c *Client) GetBerryFlavor(ctx context.Context, ident string) (*BerryFlavor, error) {
 	return do[*BerryFlavor](ctx, c, c.getURL(BerryFlavorResource, ident), nil)
 }
+
 func (c *Client) ListBerryFlavors(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[BerryFlavor], BerryFlavor], error) {
 	return do[*Page[NamedAPIResource[BerryFlavor], BerryFlavor]](ctx, c, c.listURL(BerryFlavorResource), opts.urlValues())
 }
 
-const CharacteristicResource Resource = "characteristic"
+const CharacteristicResource ResourceName[APIResource[Characteristic], Characteristic] = "characteristic"
 
 // GetCharacteristic only accepts the ID of the desired Characteristic.
 func (c *Client) GetCharacteristic(ctx context.Context, id string) (*Characteristic, error) {
 	return do[*Characteristic](ctx, c, c.getURL(CharacteristicResource, id), nil)
 }
+
 func (c *Client) ListCharacteristics(ctx context.Context, opts *ListOptions) (*Page[APIResource[Characteristic], Characteristic], error) {
 	return do[*Page[APIResource[Characteristic], Characteristic]](ctx, c, c.listURL(CharacteristicResource), opts.urlValues())
 }
 
-const ContestEffectResource Resource = "contest-effect"
+const ContestEffectResource ResourceName[APIResource[ContestEffect], ContestEffect] = "contest-effect"
 
 // GetContestEffect only accepts the ID of the desired ContestEffect.
 func (c *Client) GetContestEffect(ctx context.Context, id string) (*ContestEffect, error) {
 	return do[*ContestEffect](ctx, c, c.getURL(ContestEffectResource, id), nil)
 }
+
 func (c *Client) ListContestEffects(ctx context.Context, opts *ListOptions) (*Page[APIResource[ContestEffect], ContestEffect], error) {
 	return do[*Page[APIResource[ContestEffect], ContestEffect]](ctx, c, c.listURL(ContestEffectResource), opts.urlValues())
 }
 
-const ContestTypeResource Resource = "contest-type"
+const ContestTypeResource ResourceName[NamedAPIResource[ContestType], ContestType] = "contest-type"
 
 func (c *Client) GetContestType(ctx context.Context, ident string) (*ContestType, error) {
 	return do[*ContestType](ctx, c, c.getURL(ContestTypeResource, ident), nil)
 }
+
 func (c *Client) ListContestTypes(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[ContestType], ContestType], error) {
 	return do[*Page[NamedAPIResource[ContestType], ContestType]](ctx, c, c.listURL(ContestTypeResource), opts.urlValues())
 }
 
-const EggGroupResource Resource = "egg-group"
+const EggGroupResource ResourceName[NamedAPIResource[EggGroup], EggGroup] = "egg-group"
 
 func (c *Client) GetEggGroup(ctx context.Context, ident string) (*EggGroup, error) {
 	return do[*EggGroup](ctx, c, c.getURL(EggGroupResource, ident), nil)
 }
+
 func (c *Client) ListEggGroups(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[EggGroup], EggGroup], error) {
 	return do[*Page[NamedAPIResource[EggGroup], EggGroup]](ctx, c, c.listURL(EggGroupResource), opts.urlValues())
 }
 
-const EncounterConditionResource Resource = "encounter-condition"
+const EncounterConditionResource ResourceName[NamedAPIResource[EncounterCondition], EncounterCondition] = "encounter-condition"
 
 func (c *Client) GetEncounterCondition(ctx context.Context, ident string) (*EncounterCondition, error) {
 	return do[*EncounterCondition](ctx, c, c.getURL(EncounterConditionResource, ident), nil)
 }
+
 func (c *Client) ListEncounterConditions(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[EncounterCondition], EncounterCondition], error) {
 	return do[*Page[NamedAPIResource[EncounterCondition], EncounterCondition]](ctx, c, c.listURL(EncounterConditionResource), opts.urlValues())
 }
 
-const EncounterConditionValueResource Resource = "encounter-condition-value"
+const EncounterConditionValueResource ResourceName[NamedAPIResource[EncounterConditionValue], EncounterConditionValue] = "encounter-condition-value"
 
 func (c *Client) GetEncounterConditionValue(ctx context.Context, ident string) (*EncounterConditionValue, error) {
 	return do[*EncounterConditionValue](ctx, c, c.getURL(EncounterConditionValueResource, ident), nil)
 }
+
 func (c *Client) ListEncounterConditionValues(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[EncounterConditionValue], EncounterConditionValue], error) {
 	return do[*Page[NamedAPIResource[EncounterConditionValue], EncounterConditionValue]](ctx, c, c.listURL(EncounterConditionValueResource), opts.urlValues())
 }
 
-const EncounterMethodResource Resource = "encounter-method"
+const EncounterMethodResource ResourceName[NamedAPIResource[EncounterMethod], EncounterMethod] = "encounter-method"
 
 func (c *Client) GetEncounterMethod(ctx context.Context, ident string) (*EncounterMethod, error) {
 	return do[*EncounterMethod](ctx, c, c.getURL(EncounterMethodResource, ident), nil)
 }
+
 func (c *Client) ListEncounterMethods(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[EncounterMethod], EncounterMethod], error) {
 	return do[*Page[NamedAPIResource[EncounterMethod], EncounterMethod]](ctx, c, c.listURL(EncounterMethodResource), opts.urlValues())
 }
 
-const EvolutionChainResource Resource = "evolution-chain"
+const EvolutionChainResource ResourceName[APIResource[EvolutionChain], EvolutionChain] = "evolution-chain"
 
 // GetEvolutionChain only accepts the ID of the desired EvolutionChain.
 func (c *Client) GetEvolutionChain(ctx context.Context, id string) (*EvolutionChain, error) {
 	return do[*EvolutionChain](ctx, c, c.getURL(EvolutionChainResource, id), nil)
 }
+
 func (c *Client) ListEvolutionChains(ctx context.Context, opts *ListOptions) (*Page[APIResource[EvolutionChain], EvolutionChain], error) {
 	return do[*Page[APIResource[EvolutionChain], EvolutionChain]](ctx, c, c.listURL(EvolutionChainResource), opts.urlValues())
 }
 
-const EvolutionTriggerResource Resource = "evolution-trigger"
+const EvolutionTriggerResource ResourceName[NamedAPIResource[EvolutionTrigger], EvolutionTrigger] = "evolution-trigger"
 
 func (c *Client) GetEvolutionTrigger(ctx context.Context, ident string) (*EvolutionTrigger, error) {
 	return do[*EvolutionTrigger](ctx, c, c.getURL(EvolutionTriggerResource, ident), nil)
 }
+
 func (c *Client) ListEvolutionTriggers(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[EvolutionTrigger], EvolutionTrigger], error) {
 	return do[*Page[NamedAPIResource[EvolutionTrigger], EvolutionTrigger]](ctx, c, c.listURL(EvolutionTriggerResource), opts.urlValues())
 }
 
-const GenderResource Resource = "gender"
+const GenderResource ResourceName[NamedAPIResource[Gender], Gender] = "gender"
 
 func (c *Client) GetGender(ctx context.Context, ident string) (*Gender, error) {
 	return do[*Gender](ctx, c, c.getURL(GenderResource, ident), nil)
 }
+
 func (c *Client) ListGenders(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Gender], Gender], error) {
 	return do[*Page[NamedAPIResource[Gender], Gender]](ctx, c, c.listURL(GenderResource), opts.urlValues())
 }
 
-const GenerationResource Resource = "generation"
+const GenerationResource ResourceName[NamedAPIResource[Generation], Generation] = "generation"
 
 func (c *Client) GetGeneration(ctx context.Context, ident string) (*Generation, error) {
 	return do[*Generation](ctx, c, c.getURL(GenerationResource, ident), nil)
 }
+
 func (c *Client) ListGenerations(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Generation], Generation], error) {
 	return do[*Page[NamedAPIResource[Generation], Generation]](ctx, c, c.listURL(GenerationResource), opts.urlValues())
 }
 
-const GrowthRateResource Resource = "growth-rate"
+const GrowthRateResource ResourceName[NamedAPIResource[GrowthRate], GrowthRate] = "growth-rate"
 
 func (c *Client) GetGrowthRate(ctx context.Context, ident string) (*GrowthRate, error) {
 	return do[*GrowthRate](ctx, c, c.getURL(GrowthRateResource, ident), nil)
 }
+
 func (c *Client) ListGrowthRates(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[GrowthRate], GrowthRate], error) {
 	return do[*Page[NamedAPIResource[GrowthRate], GrowthRate]](ctx, c, c.listURL(GrowthRateResource), opts.urlValues())
 }
 
-const ItemResource Resource = "item"
+const ItemResource ResourceName[NamedAPIResource[Item], Item] = "item"
 
 func (c *Client) GetItem(ctx context.Context, ident string) (*Item, error) {
 	return do[*Item](ctx, c, c.getURL(ItemResource, ident), nil)
 }
+
 func (c *Client) ListItems(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Item], Item], error) {
 	return do[*Page[NamedAPIResource[Item], Item]](ctx, c, c.listURL(ItemResource), opts.urlValues())
 }
 
-const ItemAttributeResource Resource = "item-attribute"
+const ItemAttributeResource ResourceName[NamedAPIResource[ItemAttribute], ItemAttribute] = "item-attribute"
 
 func (c *Client) GetItemAttribute(ctx context.Context, ident string) (*ItemAttribute, error) {
 	return do[*ItemAttribute](ctx, c, c.getURL(ItemAttributeResource, ident), nil)
 }
+
 func (c *Client) ListItemAttributes(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[ItemAttribute], ItemAttribute], error) {
 	return do[*Page[NamedAPIResource[ItemAttribute], ItemAttribute]](ctx, c, c.listURL(ItemAttributeResource), opts.urlValues())
 }
 
-const ItemCategoryResource Resource = "item-category"
+const ItemCategoryResource ResourceName[NamedAPIResource[ItemCategory], ItemCategory] = "item-category"
 
 func (c *Client) GetItemCategory(ctx context.Context, ident string) (*ItemCategory, error) {
 	return do[*ItemCategory](ctx, c, c.getURL(ItemCategoryResource, ident), nil)
 }
+
 func (c *Client) ListItemCategories(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[ItemCategory], ItemCategory], error) {
 	return do[*Page[NamedAPIResource[ItemCategory], ItemCategory]](ctx, c, c.listURL(ItemCategoryResource), opts.urlValues())
 }
 
-const ItemFlingEffectResource Resource = "item-fling-effect"
+const ItemFlingEffectResource ResourceName[NamedAPIResource[ItemFlingEffect], ItemFlingEffect] = "item-fling-effect"
 
 func (c *Client) GetItemFlingEffect(ctx context.Context, ident string) (*ItemFlingEffect, error) {
 	return do[*ItemFlingEffect](ctx, c, c.getURL(ItemFlingEffectResource, ident), nil)
 }
+
 func (c *Client) ListItemFlingEffects(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[ItemFlingEffect], ItemFlingEffect], error) {
 	return do[*Page[NamedAPIResource[ItemFlingEffect], ItemFlingEffect]](ctx, c, c.listURL(ItemFlingEffectResource), opts.urlValues())
 }
 
-const ItemPocketResource Resource = "item-pocket"
+const ItemPocketResource ResourceName[NamedAPIResource[ItemPocket], ItemPocket] = "item-pocket"
 
 func (c *Client) GetItemPocket(ctx context.Context, ident string) (*ItemPocket, error) {
 	return do[*ItemPocket](ctx, c, c.getURL(ItemPocketResource, ident), nil)
 }
+
 func (c *Client) ListItemPockets(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[ItemPocket], ItemPocket], error) {
 	return do[*Page[NamedAPIResource[ItemPocket], ItemPocket]](ctx, c, c.listURL(ItemPocketResource), opts.urlValues())
 }
 
-const LanguageResource Resource = "language"
+const LanguageResource ResourceName[NamedAPIResource[Language], Language] = "language"
 
 func (c *Client) GetLanguage(ctx context.Context, ident string) (*Language, error) {
 	return do[*Language](ctx, c, c.getURL(LanguageResource, ident), nil)
 }
+
 func (c *Client) ListLanguages(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Language], Language], error) {
 	return do[*Page[NamedAPIResource[Language], Language]](ctx, c, c.listURL(LanguageResource), opts.urlValues())
 }
 
-const LocationResource Resource = "location"
+const LocationResource ResourceName[NamedAPIResource[Location], Location] = "location"
 
 func (c *Client) GetLocation(ctx context.Context, ident string) (*Location, error) {
 	return do[*Location](ctx, c, c.getURL(LocationResource, ident), nil)
 }
+
 func (c *Client) ListLocations(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Location], Location], error) {
 	return do[*Page[NamedAPIResource[Location], Location]](ctx, c, c.listURL(LocationResource), opts.urlValues())
 }
 
-const LocationAreaResource Resource = "location-area"
+const LocationAreaResource ResourceName[NamedAPIResource[LocationArea], LocationArea] = "location-area"
 
 func (c *Client) GetLocationArea(ctx context.Context, ident string) (*LocationArea, error) {
 	return do[*LocationArea](ctx, c, c.getURL(LocationAreaResource, ident), nil)
 }
+
 func (c *Client) ListLocationAreas(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[LocationArea], LocationArea], error) {
 	return do[*Page[NamedAPIResource[LocationArea], LocationArea]](ctx, c, c.listURL(LocationAreaResource), opts.urlValues())
 }
 
-const MachineResource Resource = "machine"
+const MachineResource ResourceName[APIResource[Machine], Machine] = "machine"
 
 // GetMachine only accepts the ID of the desired Machine.
 func (c *Client) GetMachine(ctx context.Context, id string) (*Machine, error) {
 	return do[*Machine](ctx, c, c.getURL(MachineResource, id), nil)
 }
+
 func (c *Client) ListMachines(ctx context.Context, opts *ListOptions) (*Page[APIResource[Machine], Machine], error) {
 	return do[*Page[APIResource[Machine], Machine]](ctx, c, c.listURL(MachineResource), opts.urlValues())
 }
 
-const MoveResource Resource = "move"
+const MoveResource ResourceName[NamedAPIResource[Move], Move] = "move"
 
 func (c *Client) GetMove(ctx context.Context, ident string) (*Move, error) {
 	return do[*Move](ctx, c, c.getURL(MoveResource, ident), nil)
 }
+
 func (c *Client) ListMoves(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Move], Move], error) {
 	return do[*Page[NamedAPIResource[Move], Move]](ctx, c, c.listURL(MoveResource), opts.urlValues())
 }
 
-const MoveAilmentResource Resource = "move-ailment"
+const MoveAilmentResource ResourceName[NamedAPIResource[MoveAilment], MoveAilment] = "move-ailment"
 
 func (c *Client) GetMoveAilment(ctx context.Context, ident string) (*MoveAilment, error) {
 	return do[*MoveAilment](ctx, c, c.getURL(MoveAilmentResource, ident), nil)
 }
+
 func (c *Client) ListMoveAilments(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveAilment], MoveAilment], error) {
 	return do[*Page[NamedAPIResource[MoveAilment], MoveAilment]](ctx, c, c.listURL(MoveAilmentResource), opts.urlValues())
 }
 
-const MoveBattleStyleResource Resource = "move-battle-style"
+const MoveBattleStyleResource ResourceName[NamedAPIResource[MoveBattleStyle], MoveBattleStyle] = "move-battle-style"
 
 func (c *Client) GetMoveBattleStyle(ctx context.Context, ident string) (*MoveBattleStyle, error) {
 	return do[*MoveBattleStyle](ctx, c, c.getURL(MoveBattleStyleResource, ident), nil)
 }
+
 func (c *Client) ListMoveBattleStyles(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveBattleStyle], MoveBattleStyle], error) {
 	return do[*Page[NamedAPIResource[MoveBattleStyle], MoveBattleStyle]](ctx, c, c.listURL(MoveBattleStyleResource), opts.urlValues())
 }
 
-const MoveCategoryResource Resource = "move-category"
+const MoveCategoryResource ResourceName[NamedAPIResource[MoveCategory], MoveCategory] = "move-category"
 
 func (c *Client) GetMoveCategory(ctx context.Context, ident string) (*MoveCategory, error) {
 	return do[*MoveCategory](ctx, c, c.getURL(MoveCategoryResource, ident), nil)
 }
+
 func (c *Client) ListMoveCategories(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveCategory], MoveCategory], error) {
 	return do[*Page[NamedAPIResource[MoveCategory], MoveCategory]](ctx, c, c.listURL(MoveCategoryResource), opts.urlValues())
 }
 
-const MoveDamageClassResource Resource = "move-damage-class"
+const MoveDamageClassResource ResourceName[NamedAPIResource[MoveDamageClass], MoveDamageClass] = "move-damage-class"
 
 func (c *Client) GetMoveDamageClass(ctx context.Context, ident string) (*MoveDamageClass, error) {
 	return do[*MoveDamageClass](ctx, c, c.getURL(MoveDamageClassResource, ident), nil)
 }
+
 func (c *Client) ListMoveDamageClasses(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveDamageClass], MoveDamageClass], error) {
 	return do[*Page[NamedAPIResource[MoveDamageClass], MoveDamageClass]](ctx, c, c.listURL(MoveDamageClassResource), opts.urlValues())
 }
 
-const MoveLearnMethodResource Resource = "move-learn-method"
+const MoveLearnMethodResource ResourceName[NamedAPIResource[MoveLearnMethod], MoveLearnMethod] = "move-learn-method"
 
 func (c *Client) GetMoveLearnMethod(ctx context.Context, ident string) (*MoveLearnMethod, error) {
 	return do[*MoveLearnMethod](ctx, c, c.getURL(MoveLearnMethodResource, ident), nil)
 }
+
 func (c *Client) ListMoveLearnMethods(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveLearnMethod], MoveLearnMethod], error) {
 	return do[*Page[NamedAPIResource[MoveLearnMethod], MoveLearnMethod]](ctx, c, c.listURL(MoveLearnMethodResource), opts.urlValues())
 }
 
-const MoveTargetResource Resource = "move-target"
+const MoveTargetResource ResourceName[NamedAPIResource[MoveTarget], MoveTarget] = "move-target"
 
 func (c *Client) GetMoveTarget(ctx context.Context, ident string) (*MoveTarget, error) {
 	return do[*MoveTarget](ctx, c, c.getURL(MoveTargetResource, ident), nil)
 }
+
 func (c *Client) ListMoveTargets(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[MoveTarget], MoveTarget], error) {
 	return do[*Page[NamedAPIResource[MoveTarget], MoveTarget]](ctx, c, c.listURL(MoveTargetResource), opts.urlValues())
 }
 
-const NatureResource Resource = "nature"
+const NatureResource ResourceName[NamedAPIResource[Nature], Nature] = "nature"
 
 func (c *Client) GetNature(ctx context.Context, ident string) (*Nature, error) {
 	return do[*Nature](ctx, c, c.getURL(NatureResource, ident), nil)
 }
+
 func (c *Client) ListNatures(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Nature], Nature], error) {
 	return do[*Page[NamedAPIResource[Nature], Nature]](ctx, c, c.listURL(NatureResource), opts.urlValues())
 }
 
-const PalParkAreaResource Resource = "pal-park-area"
+const PalParkAreaResource ResourceName[NamedAPIResource[PalParkArea], PalParkArea] = "pal-park-area"
 
 func (c *Client) GetPalParkArea(ctx context.Context, ident string) (*PalParkArea, error) {
 	return do[*PalParkArea](ctx, c, c.getURL(PalParkAreaResource, ident), nil)
 }
+
 func (c *Client) ListPalParkAreas(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PalParkArea], PalParkArea], error) {
 	return do[*Page[NamedAPIResource[PalParkArea], PalParkArea]](ctx, c, c.listURL(PalParkAreaResource), opts.urlValues())
 }
 
-const PokeathlonStatResource Resource = "pokeathlon-stat"
+const PokeathlonStatResource ResourceName[NamedAPIResource[PokeathlonStat], PokeathlonStat] = "pokeathlon-stat"
 
 func (c *Client) GetPokeathlonStat(ctx context.Context, ident string) (*PokeathlonStat, error) {
 	return do[*PokeathlonStat](ctx, c, c.getURL(PokeathlonStatResource, ident), nil)
 }
+
 func (c *Client) ListPokeathlonStats(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PokeathlonStat], PokeathlonStat], error) {
 	return do[*Page[NamedAPIResource[PokeathlonStat], PokeathlonStat]](ctx, c, c.listURL(PokeathlonStatResource), opts.urlValues())
 }
 
-const PokedexResource Resource = "pokedex"
+const PokedexResource ResourceName[NamedAPIResource[Pokedex], Pokedex] = "pokedex"
 
 func (c *Client) GetPokedex(ctx context.Context, ident string) (*Pokedex, error) {
 	return do[*Pokedex](ctx, c, c.getURL(PokedexResource, ident), nil)
 }
+
 func (c *Client) ListPokedexs(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Pokedex], Pokedex], error) {
 	return do[*Page[NamedAPIResource[Pokedex], Pokedex]](ctx, c, c.listURL(PokedexResource), opts.urlValues())
 }
 
-const PokemonResource Resource = "pokemon"
+const PokemonResource ResourceName[NamedAPIResource[Pokemon], Pokemon] = "pokemon"
 
 func (c *Client) GetPokemon(ctx context.Context, ident string) (*Pokemon, error) {
 	return do[*Pokemon](ctx, c, c.getURL(PokemonResource, ident), nil)
 }
+
 func (c *Client) ListPokemons(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Pokemon], Pokemon], error) {
 	return do[*Page[NamedAPIResource[Pokemon], Pokemon]](ctx, c, c.listURL(PokemonResource), opts.urlValues())
 }
 
-const PokemonColorResource Resource = "pokemon-color"
+const PokemonColorResource ResourceName[NamedAPIResource[PokemonColor], PokemonColor] = "pokemon-color"
 
 func (c *Client) GetPokemonColor(ctx context.Context, ident string) (*PokemonColor, error) {
 	return do[*PokemonColor](ctx, c, c.getURL(PokemonColorResource, ident), nil)
 }
+
 func (c *Client) ListPokemonColors(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PokemonColor], PokemonColor], error) {
 	return do[*Page[NamedAPIResource[PokemonColor], PokemonColor]](ctx, c, c.listURL(PokemonColorResource), opts.urlValues())
 }
 
-const PokemonFormResource Resource = "pokemon-form"
+const PokemonFormResource ResourceName[NamedAPIResource[PokemonForm], PokemonForm] = "pokemon-form"
 
 func (c *Client) GetPokemonForm(ctx context.Context, ident string) (*PokemonForm, error) {
 	return do[*PokemonForm](ctx, c, c.getURL(PokemonFormResource, ident), nil)
 }
+
 func (c *Client) ListPokemonForms(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PokemonForm], PokemonForm], error) {
 	return do[*Page[NamedAPIResource[PokemonForm], PokemonForm]](ctx, c, c.listURL(PokemonFormResource), opts.urlValues())
 }
 
-const PokemonHabitatResource Resource = "pokemon-habitat"
+const PokemonHabitatResource ResourceName[NamedAPIResource[PokemonHabitat], PokemonHabitat] = "pokemon-habitat"
 
 func (c *Client) GetPokemonHabitat(ctx context.Context, ident string) (*PokemonHabitat, error) {
 	return do[*PokemonHabitat](ctx, c, c.getURL(PokemonHabitatResource, ident), nil)
 }
+
 func (c *Client) ListPokemonHabitats(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PokemonHabitat], PokemonHabitat], error) {
 	return do[*Page[NamedAPIResource[PokemonHabitat], PokemonHabitat]](ctx, c, c.listURL(PokemonHabitatResource), opts.urlValues())
 }
 
-const PokemonShapeResource Resource = "pokemon-shape"
+const PokemonShapeResource ResourceName[NamedAPIResource[PokemonShape], PokemonShape] = "pokemon-shape"
 
 func (c *Client) GetPokemonShape(ctx context.Context, ident string) (*PokemonShape, error) {
 	return do[*PokemonShape](ctx, c, c.getURL(PokemonShapeResource, ident), nil)
 }
+
 func (c *Client) ListPokemonShapes(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PokemonShape], PokemonShape], error) {
 	return do[*Page[NamedAPIResource[PokemonShape], PokemonShape]](ctx, c, c.listURL(PokemonShapeResource), opts.urlValues())
 }
 
-const PokemonSpeciesResource Resource = "pokemon-species"
+const PokemonSpeciesResource ResourceName[NamedAPIResource[PokemonSpecies], PokemonSpecies] = "pokemon-species"
 
 func (c *Client) GetPokemonSpecies(ctx context.Context, ident string) (*PokemonSpecies, error) {
 	return do[*PokemonSpecies](ctx, c, c.getURL(PokemonSpeciesResource, ident), nil)
 }
+
 func (c *Client) ListPokemonSpecieses(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[PokemonSpecies], PokemonSpecies], error) {
 	return do[*Page[NamedAPIResource[PokemonSpecies], PokemonSpecies]](ctx, c, c.listURL(PokemonSpeciesResource), opts.urlValues())
 }
 
-const RegionResource Resource = "region"
+const RegionResource ResourceName[NamedAPIResource[Region], Region] = "region"
 
 func (c *Client) GetRegion(ctx context.Context, ident string) (*Region, error) {
 	return do[*Region](ctx, c, c.getURL(RegionResource, ident), nil)
 }
+
 func (c *Client) ListRegions(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Region], Region], error) {
 	return do[*Page[NamedAPIResource[Region], Region]](ctx, c, c.listURL(RegionResource), opts.urlValues())
 }
 
-const StatResource Resource = "stat"
+const StatResource ResourceName[NamedAPIResource[Stat], Stat] = "stat"
 
 func (c *Client) GetStat(ctx context.Context, ident string) (*Stat, error) {
 	return do[*Stat](ctx, c, c.getURL(StatResource, ident), nil)
 }
+
 func (c *Client) ListStats(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Stat], Stat], error) {
 	return do[*Page[NamedAPIResource[Stat], Stat]](ctx, c, c.listURL(StatResource), opts.urlValues())
 }
 
-const SuperContestEffectResource Resource = "super-contest-effect"
+const SuperContestEffectResource ResourceName[APIResource[SuperContestEffect], SuperContestEffect] = "super-contest-effect"
 
 // GetSuperContestEffect only accepts the ID of the desired SuperContestEffect.
 func (c *Client) GetSuperContestEffect(ctx context.Context, id string) (*SuperContestEffect, error) {
 	return do[*SuperContestEffect](ctx, c, c.getURL(SuperContestEffectResource, id), nil)
 }
+
 func (c *Client) ListSuperContestEffects(ctx context.Context, opts *ListOptions) (*Page[APIResource[SuperContestEffect], SuperContestEffect], error) {
 	return do[*Page[APIResource[SuperContestEffect], SuperContestEffect]](ctx, c, c.listURL(SuperContestEffectResource), opts.urlValues())
 }
 
-const TypeResource Resource = "type"
+const TypeResource ResourceName[NamedAPIResource[Type], Type] = "type"
 
 func (c *Client) GetType(ctx context.Context, ident string) (*Type, error) {
 	return do[*Type](ctx, c, c.getURL(TypeResource, ident), nil)
 }
+
 func (c *Client) ListTypes(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Type], Type], error) {
 	return do[*Page[NamedAPIResource[Type], Type]](ctx, c, c.listURL(TypeResource), opts.urlValues())
 }
 
-const VersionResource Resource = "version"
+const VersionResource ResourceName[NamedAPIResource[Version], Version] = "version"
 
 func (c *Client) GetVersion(ctx context.Context, ident string) (*Version, error) {
 	return do[*Version](ctx, c, c.getURL(VersionResource, ident), nil)
 }
+
 func (c *Client) ListVersions(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[Version], Version], error) {
 	return do[*Page[NamedAPIResource[Version], Version]](ctx, c, c.listURL(VersionResource), opts.urlValues())
 }
 
-const VersionGroupResource Resource = "version-group"
+const VersionGroupResource ResourceName[NamedAPIResource[VersionGroup], VersionGroup] = "version-group"
 
 func (c *Client) GetVersionGroup(ctx context.Context, ident string) (*VersionGroup, error) {
 	return do[*VersionGroup](ctx, c, c.getURL(VersionGroupResource, ident), nil)
 }
+
 func (c *Client) ListVersionGroups(ctx context.Context, opts *ListOptions) (*Page[NamedAPIResource[VersionGroup], VersionGroup], error) {
 	return do[*Page[NamedAPIResource[VersionGroup], VersionGroup]](ctx, c, c.listURL(VersionGroupResource), opts.urlValues())
 }

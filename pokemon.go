@@ -214,9 +214,11 @@ type PokemonLocationArea struct {
 	VersionDetails []VersionEncounterDetail       `json:"version_details"`
 }
 
-const PokemonLocationAreaResource Resource = "encounters"
-
-// todo: consider how to auto gen this? currently manually implemented as it's a unique case
+// PokemonLocationAreaEndpoint is attached to a pokemon's url to get the set of
+// locations it can be encountered in. It is the only sub-resource in the API,
+// and as such does not have the ResourceName type as it cannot be listed
+// directly. Use Client.GetPokemonEncounters or Pokemon.GetEncounters.
+const PokemonLocationAreaEndpoint string = "encounters"
 
 func (c *Client) GetPokemonEncounters(
 	ctx context.Context,
@@ -226,14 +228,14 @@ func (c *Client) GetPokemonEncounters(
 		ctx, c,
 		fmt.Sprintf(
 			"%s/%s",
-			c.getURL(PokemonResource, pokeIdent), PokemonLocationAreaResource,
+			trimSlash(c.getURL(PokemonResource, pokeIdent)), PokemonLocationAreaEndpoint,
 		),
 		nil,
 	)
 }
 
 func (p Pokemon) GetEncounters(ctx context.Context, c *Client) ([]PokemonLocationArea, error) {
-	return c.GetPokemonEncounters(ctx, p.Name)
+	return c.GetPokemonEncounters(ctx, p.Ident())
 }
 
 type PokemonColor struct {

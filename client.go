@@ -3,6 +3,7 @@ package pokeapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,7 +29,7 @@ const DefaultPokeAPIRoot = `https://pokeapi.co/api/v2`
 // the beginning.
 //
 // Return types are exact as possible. Pointer types are used to represent
-// "optional" fields. Slice fields are is always potentially empty.
+// "optional" fields. Slice fields are always potentially empty.
 type Client struct {
 	client      *http.Client
 	cache       Cache
@@ -77,26 +78,55 @@ func NewClient(opts *ClientOpts) *Client {
 	return &c
 }
 
-// A Resource is the kebab-case name for a PokéAPI endpoint. Resources can
-// typically be called with
+// A ResourceName is the kebab-case name for a PokéAPI endpoint. Resources can
+// always be called with
 //
-//	GET {root}/resource`
+//	GET {root}/resource
 //
-// to return a list of links to instances of the resource or
+// to return a Page of APIResource(s) pointing to instances of the resource or
 //
-//	`GET {root}/resource/{id or name}`
+//	GET {root}/resource/{id or name}
 //
-// to get a single instance of that Resource. Exceptions to this rule are
-// documented.
-type Resource string
+// to get a single instance of that resource. The helper methods List and Get
+// correspond to these api calls.
+type ResourceName[R GettableAPIResource[T], T any] string
+
+func (rn ResourceName[R, T]) String() string { return string(rn) }
+func (rn ResourceName[R, T]) isResource()    {}
+
+// Get allows for the retrieval of a single instance of the desired resource.
+func (rn ResourceName[R, T]) Get(ctx context.Context, c *Client, ident string) (*T, error) {
+	return do[*T](ctx, c, c.getURL(rn, ident), nil)
+}
+
+func (rn ResourceName[R, T]) List(
+	ctx context.Context,
+	c *Client,
+	opts *ListOptions,
+) (*Page[R, T], error) {
+	p, err := do[*Page[R, T]](ctx, c, c.listURL(rn), opts.urlValues())
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return nil, ErrListExhausted
+	case err != nil:
+		return nil, err
+	default:
+		return p, nil
+	}
+}
 
 func trimSlash[S ~string](s S) string { return strings.Trim(string(s), "/") }
 
-func (c *Client) listURL(resource Resource) string {
-	return fmt.Sprintf("%s/%s/", c.pokeAPIRoot, trimSlash(resource))
+type resourceStringer interface {
+	isResource()
+	String() string
 }
-func (c *Client) getURL(resource Resource, name string) string {
-	return fmt.Sprintf("%s/%s/%s/", c.pokeAPIRoot, trimSlash(resource), trimSlash(name))
+
+func (c *Client) listURL(resource resourceStringer) string {
+	return fmt.Sprintf("%s/%s/", c.pokeAPIRoot, trimSlash(resource.String()))
+}
+func (c *Client) getURL(resource resourceStringer, name string) string {
+	return fmt.Sprintf("%s/%s/%s/", c.pokeAPIRoot, trimSlash(resource.String()), trimSlash(name))
 }
 
 // An Identifier is embedded into all retrievable resources. It makes it easy to
@@ -163,10 +193,17 @@ func (lo *ListOptions) urlValues() url.Values {
 	return v
 }
 
+// GettableAPIResource is implemented by APIResource and NamedAPIResource to
+// allow resources to be directly retrieved by their reference, either as part
+// of a Page or when referenced by another resource.
+type GettableAPIResource[T any] interface {
+	Get(ctx context.Context, client *Client) (*T, error)
+}
+
 // A Page represents a list of APIResource s or NamedAPIResource s. It also
 // includes information on the total number of resources in the result set, and
 // how to view the Next & Previous Page s.
-type Page[R APIResource[T] | NamedAPIResource[T], T any] struct {
+type Page[R GettableAPIResource[T], T any] struct {
 	Count    int     `json:"count"`    // The total number of resources available from this API.
 	Next     *string `json:"next"`     // The URL for the next page in the list.
 	Previous *string `json:"previous"` // The URL for the previous page in the list.
@@ -180,7 +217,15 @@ func (p *Page[R, T]) GetNext(ctx context.Context, client *Client) (*Page[R, T], 
 		return nil, ErrListExhausted
 	}
 
-	return do[*Page[R, T]](ctx, client, *p.Next, nil)
+	next, err := do[*Page[R, T]](ctx, client, *p.Next, nil)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return nil, ErrListExhausted
+	case err != nil:
+		return nil, err
+	default:
+		return next, nil
+	}
 }
 
 // GetPrevious retrieves the Page at Page.Previous. If there is no previous
@@ -190,7 +235,15 @@ func (p *Page[R, T]) GetPrevious(ctx context.Context, client *Client) (*Page[R, 
 		return nil, ErrListExhausted
 	}
 
-	return do[*Page[R, T]](ctx, client, *p.Previous, nil)
+	prev, err := do[*Page[R, T]](ctx, client, *p.Previous, nil)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return nil, ErrListExhausted
+	case err != nil:
+		return nil, err
+	default:
+		return prev, nil
+	}
 }
 
 // The noCache is the default Cache implementation used by a Client. While it is

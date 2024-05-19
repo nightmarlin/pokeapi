@@ -158,7 +158,7 @@ func pageType(name string, isUnnamed bool) string {
 	if isUnnamed {
 		n = ""
 	}
-	return fmt.Sprintf("Page[%sAPIResource[%s], %[2]s]", n, name)
+	return fmt.Sprintf("[%sAPIResource[%s], %[2]s]", n, name)
 }
 
 // identName generates the identifier param name in Get* methods. For unnamed
@@ -207,13 +207,14 @@ import "context"
 `
 
 const resourceTemplateString = `
-const {{.Name}}Resource Resource = "{{.KebabCase}}"
+const {{.Name}}Resource ResourceName{{.PageType}} = "{{.KebabCase}}"
 {{ if .IsUnnamed }}
 // Get{{ .Name }} only accepts the ID of the desired {{ .Name }}.{{ end }}
 func (c *Client) Get{{ .Name }}(ctx context.Context, {{ .IdentName }} string) (*{{ .Name }}, error) {
 	return do[*{{ .Name }}](ctx, c, c.getURL({{ .Name }}Resource, {{ .IdentName }}), nil)
 }
-func (c *Client) List{{.Plural}}(ctx context.Context, opts *ListOptions) (*{{ .PageType }}, error) {
-	return do[*{{ .PageType }}](ctx, c, c.listURL({{ .Name }}Resource), opts.urlValues())
+
+func (c *Client) List{{.Plural}}(ctx context.Context, opts *ListOptions) (*Page{{ .PageType }}, error) {
+	return do[*Page{{ .PageType }}](ctx, c, c.listURL({{ .Name }}Resource), opts.urlValues())
 }
 `
