@@ -20,14 +20,13 @@ const (
 // queue-like structure, with some extra semantics on Lookup & a map to allow
 // for O(1) lookups:
 //
-// - On Lookup, if a cache hit occurs, the entry is moved to the top of the list
-// (it is now the youngest entry).
-//
-// - On Put, the entry is moved to/inserted at the top of the list. If an insert
-// causes the length of the list to exceed the cache capacity, the oldest
-// entry is dropped. A Put occurs on the first call to
-// [pokeapi.CacheLookup.Hydrate] on a [pokeapi.CacheLookup] returned by
-// [LRU.Lookup] (as long as [pokeapi.CacheLookup.Close] has not yet been called).
+//   - On Lookup, if a cache hit occurs, the entry is moved to the top of the list
+//     (it is now the youngest entry).
+//   - On Put, the entry is moved to/inserted at the top of the list. If an insert
+//     causes the length of the list to exceed the cache capacity, the oldest
+//     entry is dropped. A Put occurs on the first call to
+//     [pokeapi.CacheLookup.Hydrate] on a [pokeapi.CacheLookup] returned by
+//     [LRU.Lookup] (as long as [pokeapi.CacheLookup.Close] has not yet been called).
 //
 // If multiple cache lookups are opened for the same url, the LRU cache will
 // ensure that they are not executed in parallel - instead ensuring these

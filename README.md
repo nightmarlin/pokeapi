@@ -54,6 +54,8 @@ resource, correctly typed - no casting required!
 
 `Page`s are sections of a paginated list of `(Named)APIResource`s. The
 next/previous page of results can be retrieved with `Page.Get(Next|Previous)`.
+For ease-of-use, the `iterator` package provides a way to iterate through every 
+value within a resource!
 
 ### Caching
 
