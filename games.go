@@ -1,9 +1,5 @@
 package pokeapi
 
-import (
-	"context"
-)
-
 type Generation struct {
 	NamedIdentifier
 
@@ -30,17 +26,6 @@ type Pokedex struct {
 	PokemonEntries []PokemonEntry                   `json:"pokemon_entries"`
 	Region         *NamedAPIResource[Region]        `json:"region"`
 	VersionGroups  []NamedAPIResource[VersionGroup] `json:"version_groups"`
-}
-
-// ListPokedexs is a duplicate of ListPokedexes. Its name has a spelling mistake
-// spotted after the v1.0.0 compatibility guarantee was made.
-//
-// Deprecated. Use ListPokedexes instead.
-func (c *Client) ListPokedexs(
-	ctx context.Context,
-	opts *ListOpts,
-) (*Page[NamedAPIResource[Pokedex], Pokedex], error) {
-	return c.ListPokedexes(ctx, opts)
 }
 
 type Version struct {
