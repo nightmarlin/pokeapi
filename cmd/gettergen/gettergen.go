@@ -143,15 +143,26 @@ func generateFile(path string, tArgs []resourceTemplateArgs) error {
 }
 
 // pluralise pluralises strings with the following rules:
-// 1. if it ends in -y, it's converted to -ies
-// 2. if it ends in -s, it's converted to -ses
-// 3. else append 's'
+//
+//  1. "Pokemon" is both the singular and plural form.
+//  2. if it ends in -y, it's converted to -ies
+//  3. if it ends in -s or -x, it's converted to -ses
+//     3.a. unless it ends in -ies
+//  4. else append 's'
 func pluralise(name string) string {
-	if name == "" {
-		return ""
-	} else if s, cut := strings.CutSuffix(name, "y"); cut {
+	if name == "" || name == "Pokemon" {
+		return name
+	}
+	if s, cut := strings.CutSuffix(name, "y"); cut {
 		return fmt.Sprintf("%sies", s)
-	} else if strings.HasSuffix(name, "s") {
+	}
+	if strings.HasSuffix(name, "s") {
+		if strings.HasSuffix(name, "ies") {
+			return name
+		}
+		return fmt.Sprintf("%ses", name)
+	}
+	if strings.HasSuffix(name, "x") {
 		return fmt.Sprintf("%ses", name)
 	}
 	return fmt.Sprintf("%ss", name)

@@ -328,7 +328,7 @@ const PokedexResource ResourceName[NamedAPIResource[Pokedex], Pokedex] = "pokede
 func (c *Client) GetPokedex(ctx context.Context, ident string) (*Pokedex, error) {
 	return PokedexResource.Get(ctx, c, ident)
 }
-func (c *Client) ListPokedexs(ctx context.Context, opts *ListOpts) (*Page[NamedAPIResource[Pokedex], Pokedex], error) {
+func (c *Client) ListPokedexes(ctx context.Context, opts *ListOpts) (*Page[NamedAPIResource[Pokedex], Pokedex], error) {
 	return PokedexResource.List(ctx, c, opts)
 }
 
@@ -337,7 +337,7 @@ const PokemonResource ResourceName[NamedAPIResource[Pokemon], Pokemon] = "pokemo
 func (c *Client) GetPokemon(ctx context.Context, ident string) (*Pokemon, error) {
 	return PokemonResource.Get(ctx, c, ident)
 }
-func (c *Client) ListPokemons(ctx context.Context, opts *ListOpts) (*Page[NamedAPIResource[Pokemon], Pokemon], error) {
+func (c *Client) ListPokemon(ctx context.Context, opts *ListOpts) (*Page[NamedAPIResource[Pokemon], Pokemon], error) {
 	return PokemonResource.List(ctx, c, opts)
 }
 
@@ -382,7 +382,7 @@ const PokemonSpeciesResource ResourceName[NamedAPIResource[PokemonSpecies], Poke
 func (c *Client) GetPokemonSpecies(ctx context.Context, ident string) (*PokemonSpecies, error) {
 	return PokemonSpeciesResource.Get(ctx, c, ident)
 }
-func (c *Client) ListPokemonSpecieses(ctx context.Context, opts *ListOpts) (*Page[NamedAPIResource[PokemonSpecies], PokemonSpecies], error) {
+func (c *Client) ListPokemonSpecies(ctx context.Context, opts *ListOpts) (*Page[NamedAPIResource[PokemonSpecies], PokemonSpecies], error) {
 	return PokemonSpeciesResource.List(ctx, c, opts)
 }
 
