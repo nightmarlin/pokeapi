@@ -41,6 +41,7 @@ type ItemAttribute struct {
 }
 
 type ItemCategory struct {
+	//gettergen:plural ItemCategories
 	NamedIdentifier
 
 	Items  []NamedAPIResource[Item]     `json:"items"`

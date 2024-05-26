@@ -25,6 +25,7 @@ type AbilityPokemon struct {
 }
 
 type Ability struct {
+	//gettergen:plural Abilities
 	NamedIdentifier
 
 	IsMainSeries      bool                         `json:"is_main_series"` // Whether this Ability originated in the main series of the video games.
@@ -179,6 +180,7 @@ type PokemonCries struct {
 }
 
 type Pokemon struct {
+	//gettergen:plural Pokemon
 	NamedIdentifier
 
 	BaseExperience int                              `json:"base_experience"`
@@ -303,6 +305,7 @@ type PokemonSpeciesVariety struct {
 }
 
 type PokemonSpecies struct {
+	//gettergen:plural PokemonSpecies
 	NamedIdentifier
 
 	Order                int                               `json:"order"`          // The order in which species should be sorted. Based on National Dex order, except families are grouped together and sorted by stage.

@@ -4,25 +4,33 @@
 //
 // Usage:
 //
-//	gettergen path/to/file/in/package.go
+//	gettergen "output-path.go"
+//
+// Directives (must be written as part of doc comments preceding the identifier
+// embed declaration):
+//
+//	gettergen:plural {{Plural}}
+//		When present, this will be used as the pluralized form of the resource's name.
+//	gettergen:ignore
+//		When present, will ignore the struct when generating getters.
 package main
 
 import (
 	"context"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/token"
 	"go/types"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"text/template"
 
 	"golang.org/x/tools/go/packages"
 )
-
-func printErr(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format, args...) }
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
@@ -30,61 +38,74 @@ func main() {
 	flag.Parse()
 
 	args := flag.Args()
-	if len(args) != 2 {
-		printErr("two args (package path, out file) are required, got args: %v\n", args)
+	if len(args) != 1 {
+		_, _ = fmt.Fprintf(os.Stderr, "one args (out file) is required, got args: %v", args)
 		os.Exit(1)
 	}
+	outFile := args[0]
 
-	packageDir := filepath.Dir(args[0])
-	outFile := args[1]
-
-	resourceDefinitions, err := loadResourceNames(ctx, packageDir)
+	rds, err := loadResourceDefs(ctx)
 	if err != nil {
-		printErr("failed to load resource names: %s", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "failed to load resource names: %s", err.Error())
 		os.Exit(1)
 	}
 
-	tArgs := make([]resourceTemplateArgs, len(resourceDefinitions))
-	for i, d := range resourceDefinitions {
-		tArgs[i] = d.toTemplateArgs()
-	}
-
-	if err := generateFile(outFile, tArgs); err != nil {
-		printErr("failed to generate file: %s", err.Error())
+	if err := generateFile(outFile, rds); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to generate file: %s", err.Error())
 		os.Exit(1)
 	}
 }
 
+type directive string
+
+const (
+	pluralDirective directive = "plural"
+	ignoreDirective directive = "ignore"
+)
+
+var directiveRegexp = regexp.MustCompile(`gettergen:(.+)`)
+
 type resourceDefinition struct {
-	resourceName      string
-	isUnnamedResource bool
+	Name    string
+	Plural  string
+	Unnamed bool
 }
 
 const (
-	unnamedIdentifierTypeName = `Identifier`
-	namedIdentifierTypeName   = `NamedIdentifier`
+	unnamedIdentifierTypeName = `github.com/nightmarlin/pokeapi.Identifier`
+	namedIdentifierTypeName   = `github.com/nightmarlin/pokeapi.NamedIdentifier`
 )
 
-var embedExclusions = map[string]struct{}{
-	`NamedIdentifier`: {}, // Embeds Identifier, but is not a Resource
-}
-
-func loadResourceNames(ctx context.Context, dir string) ([]resourceDefinition, error) {
-	pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedTypes, Context: ctx}, dir)
+func loadResourceDefs(ctx context.Context) ([]resourceDefinition, error) {
+	pkgs, err := packages.Load(
+		&packages.Config{
+			Context: ctx,
+			// - type info for embedded struct field checks
+			// - syntax & compiled files for directive checks
+			Mode: packages.NeedTypes | packages.NeedSyntax | packages.NeedCompiledGoFiles,
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("loading package: %w", err)
 	} else if len(pkgs) != 1 {
 		return nil, fmt.Errorf("only expected to load 1 package directory, got %d", len(pkgs))
 	}
 
-	ts := pkgs[0].Types.Scope()
-	var definitions []resourceDefinition
+	var (
+		pkg         = pkgs[0]
+		typeScope   = pkg.Types.Scope()
+		definitions []resourceDefinition
+	)
 
-	for _, objName := range ts.Names() {
-		if _, excluded := embedExclusions[objName]; excluded {
+	for _, objName := range typeScope.Names() {
+		var (
+			obj = typeScope.Lookup(objName)
+			t   = obj.Type()
+		)
+
+		if !obj.Exported() {
 			continue
 		}
-		t := ts.Lookup(objName).Type()
 
 		namedT, isNamed := t.(*types.Named)
 		if !isNamed {
@@ -97,32 +118,80 @@ func loadResourceNames(ctx context.Context, dir string) ([]resourceDefinition, e
 		}
 
 		for fieldNum := range structT.NumFields() {
-			structF := structT.Field(fieldNum)
-
-			if !structF.Embedded() {
+			f := structT.Field(fieldNum)
+			if !f.Embedded() {
 				continue
 			}
 
-			switch structF.Name() {
+			var rd resourceDefinition
+
+			switch f.Type().String() {
 			case unnamedIdentifierTypeName:
-				definitions = append(
-					definitions,
-					resourceDefinition{resourceName: objName, isUnnamedResource: true},
-				)
+				rd = resourceDefinition{Name: objName, Unnamed: true}
 
 			case namedIdentifierTypeName:
-				definitions = append(
-					definitions,
-					resourceDefinition{resourceName: objName, isUnnamedResource: false},
-				)
+				rd = resourceDefinition{Name: objName, Unnamed: false}
+
+			default:
+				continue
 			}
+
+			d, val := extractDirectiveForDecl(pkg, f.Pos())
+			switch d {
+			case ignoreDirective:
+				continue
+			case pluralDirective:
+				rd.Plural = val
+			}
+
+			definitions = append(definitions, rd)
 		}
 	}
 
 	return definitions, nil
 }
 
-func generateFile(path string, tArgs []resourceTemplateArgs) error {
+// extractDirectiveForDecl extracts a gettergen directive, if present, from the
+// comment group that precedes the declaration at the provided token.Pos
+func extractDirectiveForDecl(
+	pkg *packages.Package,
+	lpos token.Pos,
+) (directive, string) {
+	var (
+		pos               = pkg.Fset.Position(lpos)
+		expectCommentLine = pos.Line - 1
+		compiledFileIDX   = slices.Index(pkg.CompiledGoFiles, pos.Filename)
+
+		commentGroupIDX = slices.IndexFunc(
+			pkg.Syntax[compiledFileIDX].Comments,
+			func(cg *ast.CommentGroup) bool {
+				for _, cLine := range cg.List {
+					if pkg.Fset.Position(cLine.Pos()).Line == expectCommentLine {
+						return true
+					}
+				}
+				return false
+			},
+		)
+	)
+
+	if commentGroupIDX == -1 {
+		return "", ""
+	}
+
+	for _, cLine := range pkg.Syntax[compiledFileIDX].Comments[commentGroupIDX].List {
+		match := directiveRegexp.FindStringSubmatch(cLine.Text)
+		if len(match) == 2 {
+			d, s, _ := strings.Cut(match[1], " ")
+			return directive(d), s
+		}
+	}
+	return "", ""
+}
+
+// generateFile creates a file, writes the prelude to it, and then executes the
+// resourceTemplate repeatedly with the provided resourceDefinition slice.
+func generateFile(path string, rds []resourceDefinition) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("opening file: %w", err)
@@ -133,78 +202,42 @@ func generateFile(path string, tArgs []resourceTemplateArgs) error {
 		return fmt.Errorf("writing prelude: %w", err)
 	}
 
-	for _, arg := range tArgs {
-		if err := resourceTemplate.Execute(f, arg); err != nil {
-			return fmt.Errorf("executing template for %q: %w", arg.Name, err)
+	for _, rd := range rds {
+		tArg := rd.toTemplateArgs()
+		if err := resourceTemplate.Execute(f, tArg); err != nil {
+			return fmt.Errorf("executing template for %q: %w", tArg.Name, err)
 		}
 	}
 
 	return nil
 }
 
-// pluralise pluralises strings with the following rules:
-//
-//  1. "Pokemon" is both the singular and plural form.
-//  2. if it ends in -y, it's converted to -ies
-//  3. if it ends in -s or -x, it's converted to -ses
-//     3.a. unless it ends in -ies
-//  4. else append 's'
-func pluralise(name string) string {
-	if name == "" || name == "Pokemon" {
-		return name
-	}
-	if s, cut := strings.CutSuffix(name, "y"); cut {
-		return fmt.Sprintf("%sies", s)
-	}
-	if strings.HasSuffix(name, "s") {
-		if strings.HasSuffix(name, "ies") {
-			return name
-		}
-		return fmt.Sprintf("%ses", name)
-	}
-	if strings.HasSuffix(name, "x") {
-		return fmt.Sprintf("%ses", name)
-	}
-	return fmt.Sprintf("%ss", name)
-}
-
-// pageType generates the correct type for the page returned by List* methods.
-func pageType(name string, isUnnamed bool) string {
-	n := "Named"
-	if isUnnamed {
-		n = ""
-	}
-	return fmt.Sprintf("[%sAPIResource[%s], %[2]s]", n, name)
-}
-
-// identName generates the identifier param name in Get* methods. For unnamed
-// resources that only accept IDs, it returns "id" - otherwise, "ident".
-func identName(isUnnamed bool) string {
-	if isUnnamed {
-		return "id"
-	}
-	return "ident"
-}
-
 var skewerRegexp = regexp.MustCompile(`([a-z])([A-Z])`)
 
-// skewer converts a PascalCased string to a kebab-cased one.
-func skewer(name string) string {
-	return strings.ToLower(skewerRegexp.ReplaceAllString(name, `$1-$2`))
+func (rd resourceDefinition) toTemplateArgs() resourceTemplateArgs {
+	plural := fmt.Sprintf("%ss", rd.Name)
+	if rd.Plural != "" {
+		plural = rd.Plural
+	}
+
+	identName := "ident"
+	pageTypePrefix := "Named"
+	if rd.Unnamed {
+		identName = "id"
+		pageTypePrefix = ""
+	}
+
+	return resourceTemplateArgs{
+		Name:          rd.Name,
+		Plural:        plural,
+		IsUnnamed:     rd.Unnamed,
+		IdentName:     identName,
+		KebabCase:     strings.ToLower(skewerRegexp.ReplaceAllString(rd.Name, `$1-$2`)),
+		ReferenceType: fmt.Sprintf("[%sAPIResource[%s], %[2]s]", pageTypePrefix, rd.Name),
+	}
 }
 
 var resourceTemplate = template.Must(template.New("resource").Parse(resourceTemplateString))
-
-func (rd resourceDefinition) toTemplateArgs() resourceTemplateArgs {
-	return resourceTemplateArgs{
-		Name:          rd.resourceName,
-		Plural:        pluralise(rd.resourceName),
-		IsUnnamed:     rd.isUnnamedResource,
-		IdentName:     identName(rd.isUnnamedResource),
-		KebabCase:     skewer(rd.resourceName),
-		ReferenceType: pageType(rd.resourceName, rd.isUnnamedResource),
-	}
-}
 
 type resourceTemplateArgs struct {
 	Name          string

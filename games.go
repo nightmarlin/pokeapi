@@ -18,6 +18,7 @@ type PokemonEntry struct {
 }
 
 type Pokedex struct {
+	//gettergen:plural Pokedexes
 	NamedIdentifier
 
 	IsMainSeries   bool                             `json:"is_main_series"`

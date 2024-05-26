@@ -9,8 +9,8 @@ type BerryFlavorMap struct {
 	Flavor  NamedAPIResource[BerryFlavor] `json:"flavor"`
 }
 
-// A Berry !
 type Berry struct {
+	//gettergen:plural Berries
 	NamedIdentifier
 
 	Item    NamedAPIResource[Item] `json:"item"`
@@ -33,6 +33,7 @@ type Berry struct {
 func (b Berry) GrowthTimeDuration() time.Duration { return time.Duration(b.GrowthTime) * time.Hour }
 
 type BerryFirmness struct {
+	//gettergen:plural BerryFirmnesses
 	NamedIdentifier
 
 	Berries []NamedAPIResource[Berry] `json:"berries"`

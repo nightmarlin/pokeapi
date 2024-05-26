@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//go:generate go run cmd/gettergen/gettergen.go -- $GOFILE "getters.gen.go"
+//go:generate go run cmd/gettergen/gettergen.go -- "getters.gen.go"
 
 // The DefaultPokeAPIRoot is the standard URL for PokéAPI. An alternative URL
 // can be provided via [ClientOpts.PokeAPIRoot] for use with alternative
@@ -147,6 +147,7 @@ func (r APIResource[T]) Get(ctx context.Context, c *Client) (*T, error) {
 // A resource directly embedding a NamedIdentifier will have a named get/list
 // client function pair generated for it by gettergen.
 type NamedIdentifier struct {
+	//gettergen:ignore
 	Identifier
 	Name string `json:"name"`
 }

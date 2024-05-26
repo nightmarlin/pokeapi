@@ -96,6 +96,7 @@ type MoveBattleStyle struct {
 }
 
 type MoveCategory struct {
+	//gettergen:plural MoveCategories
 	NamedIdentifier
 
 	Moves        []NamedAPIResource[Move] `json:"moves"`
@@ -103,6 +104,7 @@ type MoveCategory struct {
 }
 
 type MoveDamageClass struct {
+	//gettergen:plural MoveDamageClasses
 	NamedIdentifier
 
 	Descriptions []Description            `json:"descriptions"`
