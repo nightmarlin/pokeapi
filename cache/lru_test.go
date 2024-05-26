@@ -51,36 +51,36 @@ func TestLRU(t *testing.T) {
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/wooper",
+				"https://pokeapi.co/api/v2/pokemon/wooper",
 				loader("a ground-type pokemon"),
 			)
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/dragalge",
+				"https://pokeapi.co/api/v2/pokemon/dragalge",
 				loader("a poison-type pokemon"),
 			)
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/wooper",
+				"https://pokeapi.co/api/v2/pokemon/wooper",
 				loader("a water-type pokemon"),
 			) // wooper now more recent than dragalge
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/miltank",
+				"https://pokeapi.co/api/v2/pokemon/miltank",
 				loader("a normal-type pokemon"),
 			) // cache now full
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/necrozma",
+				"https://pokeapi.co/api/v2/pokemon/necrozma",
 				loader("a psychic-type pokemon"),
 			) // dragalge should be evicted
 
 			l, missed := missCheckLoader()
-			v, _ := c.Lookup(ctx, "https://pokeapi.co/api/v2/dragalge", l)
+			v, _ := c.Lookup(ctx, "https://pokeapi.co/api/v2/pokemon/dragalge", l)
 
 			if !missed() {
 				t.Errorf("wanted lookup to miss; got %v", v)
@@ -123,7 +123,7 @@ func TestLRU(t *testing.T) {
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/copperajah",
+				"https://pokeapi.co/api/v2/pokemon/copperajah",
 				loader("a steel-type pokemon"),
 			)
 
@@ -135,17 +135,70 @@ func TestLRU(t *testing.T) {
 
 			_, _ = c.Lookup(
 				ctx,
-				"https://pokeapi.co/api/v2/mamoswine",
+				"https://pokeapi.co/api/v2/pokemon/mamoswine",
 				loader("an ice-type pokemon"),
 			)
 
 			sleepForExpiryGoRoutine()
 
 			l, m := missCheckLoader()
-			_, _ = c.Lookup(ctx, "https://pokeapi.co/api/v2/copperajah", l)
+			_, _ = c.Lookup(ctx, "https://pokeapi.co/api/v2/pokemon/copperajah", l)
 
 			if !m() {
 				t.Errorf("wanted lookup to miss; but it didn't")
+			}
+		},
+	)
+
+	t.Run(
+		"skips matching urls when required",
+		func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx = context.Background()
+				c   = cache.NewLRU(
+					&cache.LRUOpts{
+						Size: 1,
+						SkipURL: func(url string) bool {
+							return url == "https://pokeapi.co/api/v2/pokemon?offset=20&limit=20"
+						},
+					},
+				)
+
+				loadOnMissCallCount int
+				loadOnMiss          = func(context.Context) (any, error) {
+					loadOnMissCallCount += 1
+					return pokeapi.Pokemon{NamedIdentifier: pokeapi.NamedIdentifier{Name: "magearna"}}, nil
+				}
+			)
+
+			_, _ = c.Lookup(
+				ctx,
+				"https://pokeapi.co/api/v2/pokemon?offset=20&limit=20",
+				loadOnMiss,
+			) // should skip cache
+
+			_, _ = c.Lookup(
+				ctx,
+				"https://pokeapi.co/api/v2/pokemon/magearna",
+				loadOnMiss,
+			) // should be loaded into cache
+
+			_, _ = c.Lookup(
+				ctx,
+				"https://pokeapi.co/api/v2/pokemon?offset=20&limit=20",
+				loadOnMiss,
+			) // should also skip cache
+
+			_, _ = c.Lookup(
+				ctx,
+				"https://pokeapi.co/api/v2/pokemon/magearna",
+				loadOnMiss,
+			) // should be fetched from cache
+
+			if loadOnMissCallCount != 3 {
+				t.Errorf("want loadOnMiss to be called 3 times; got %d", loadOnMissCallCount)
 			}
 		},
 	)

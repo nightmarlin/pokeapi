@@ -39,6 +39,8 @@ const (
 type LRU struct {
 	mux sync.Mutex
 
+	skipURL func(url string) bool
+
 	ttl         time.Duration    // how long cache entries should be stored before eviction
 	clock       func() time.Time // get the current time
 	expiryDelay time.Duration    // how often to wait between expiry runs
@@ -68,14 +70,18 @@ type LRUOpts struct {
 	// How long to wait between expiry runs. Default ~1 week. If set to 0, will
 	// check for expired keys every Lookup. Only applies if TTL != 0.
 	ExpiryDelay *time.Duration
+
+	// If SkipURL returns true, the LRU won't cache the response for that URL.
+	// This can be useful to avoid filling the cache with parameterised List*
+	// requests that will not be reused.
+	SkipURL func(url string) bool
 }
 
 // NewLRU constructs a new LRU cache for use in accordance with the provided
 // LRUOpts.
 func NewLRU(opts *LRUOpts) *LRU {
-	cacheSize := defaultLRUCacheSize
-
 	lru := LRU{
+		capacity:    defaultLRUCacheSize,
 		ttl:         defaultLRUCacheTTL,
 		expiryDelay: defaultLRUCacheExpiryDelay,
 		clock:       func() time.Time { return time.Now().UTC() },
@@ -83,7 +89,7 @@ func NewLRU(opts *LRUOpts) *LRU {
 
 	if opts != nil {
 		if opts.Size > 0 {
-			cacheSize = opts.Size
+			lru.capacity = opts.Size
 		}
 		if opts.TTL > 0 {
 			lru.ttl = opts.TTL
@@ -94,11 +100,13 @@ func NewLRU(opts *LRUOpts) *LRU {
 		if opts.ExpiryDelay != nil && *opts.ExpiryDelay >= 0 {
 			lru.expiryDelay = *opts.ExpiryDelay
 		}
+		if opts.SkipURL != nil {
+			lru.skipURL = opts.SkipURL
+		}
 	}
 
 	// only allocate the map once we know how big it needs to be
-	lru.capacity = cacheSize
-	lru.entries = make(map[string]*lruCacheEntry, cacheSize)
+	lru.entries = make(map[string]*lruCacheEntry, lru.capacity)
 	return &lru
 }
 
@@ -187,6 +195,11 @@ func (lru *LRU) Lookup(
 	url string,
 	loadOnMiss pokeapi.CacheLoader,
 ) (any, error) {
+	// don't cache urls that match filter
+	if lru.skipURL != nil && lru.skipURL(url) {
+		return loadOnMiss(ctx)
+	}
+
 	res, err, _ := lru.ongoing.Do(
 		"url",
 		func() (any, error) {

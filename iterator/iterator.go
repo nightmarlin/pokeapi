@@ -1,3 +1,6 @@
+// Package iterator provides an Iterator type that manages page iteration for
+// you - fetching the following pokeapi.GettableAPIResource and (if necessary)
+// the next pokeapi.Page of resources.
 package iterator
 
 import (
@@ -15,13 +18,11 @@ type nextPageFn[R pokeapi.GettableAPIResource[T], T any] func(
 ) (*pokeapi.Page[R, T], error)
 
 // An Iterator allows for quick and easy iteration through the elements of every
-// page of a resource list.
+// pokeapi.Page of a resource list.
 type Iterator[R pokeapi.GettableAPIResource[T], T any] struct {
 	mux sync.Mutex
 
-	ctx       context.Context
-	cancelCTX context.CancelFunc
-	client    *pokeapi.Client
+	client *pokeapi.Client
 
 	results     []R
 	nextReadIDX int
@@ -31,26 +32,43 @@ type Iterator[R pokeapi.GettableAPIResource[T], T any] struct {
 }
 
 // New creates a new Iterator for the provided pokeapi.ResourceName.
+//
 // Iterator.Stop should always be called on the returned Iterator once you are
 // finished with it.
 func New[R pokeapi.GettableAPIResource[T], T any](
-	ctx context.Context,
 	client *pokeapi.Client,
 	resourceName pokeapi.ResourceName[R, T],
 ) *Iterator[R, T] {
-	ctx, cancel := context.WithCancel(ctx)
-
 	return &Iterator[R, T]{
-		ctx:       ctx,
-		cancelCTX: cancel,
-		client:    client,
+		client: client,
 		nextPageFn: func(ctx context.Context, c *pokeapi.Client) (*pokeapi.Page[R, T], error) {
 			return resourceName.List(ctx, c, nil)
 		},
 	}
 }
 
-func (i *Iterator[R, T]) Next() (*T, error) {
+// NewFromPage creates a new Iterator that starts at the provided pokeapi.Page.
+// Iteration will continue with pages of the size of the original pokeapi.Page.
+//
+// Iterator.Stop should always be called on the returned Iterator once you are
+// finished with it.
+func NewFromPage[R pokeapi.GettableAPIResource[T], T any](
+	client *pokeapi.Client,
+	page pokeapi.Page[R, T],
+) *Iterator[R, T] {
+	return &Iterator[R, T]{
+		client:     client,
+		results:    page.Results,
+		nextPageFn: page.GetNext,
+	}
+}
+
+// Next fetches the next page if the current one is empty or has been exhausted.
+// It then fetches the next available pokeapi.GettableAPIResource and returns
+// its value (or any error that may have occurred).
+//
+// Calling Next after Stop will return pokeapi.ErrListExhausted.
+func (i *Iterator[R, T]) Next(ctx context.Context) (*T, error) {
 	defer i.mux.Unlock()
 	i.mux.Lock()
 
@@ -61,7 +79,7 @@ func (i *Iterator[R, T]) Next() (*T, error) {
 	if len(i.results) <= i.nextReadIDX {
 		// fetch next page
 
-		np, err := i.nextPageFn(i.ctx, i.client)
+		np, err := i.nextPageFn(ctx, i.client)
 		if err != nil {
 			if errors.Is(err, pokeapi.ErrListExhausted) {
 				i.close()
@@ -80,7 +98,7 @@ func (i *Iterator[R, T]) Next() (*T, error) {
 		return nil, pokeapi.ErrListExhausted
 	}
 
-	r, err := i.results[i.nextReadIDX].Get(i.ctx, i.client)
+	r, err := i.results[i.nextReadIDX].Get(ctx, i.client)
 	if err != nil {
 		return nil, fmt.Errorf("fetching next resource: %w", err)
 	}
@@ -91,13 +109,10 @@ func (i *Iterator[R, T]) Next() (*T, error) {
 func (i *Iterator[R, T]) close() {
 	i.closeOnce.Do(
 		func() {
-			i.cancelCTX()
 			i.nextPageFn = nil
 			i.results = nil
 			i.nextReadIDX = 0
 			i.client = nil
-			i.ctx = nil
-			i.cancelCTX = nil
 		},
 	)
 }

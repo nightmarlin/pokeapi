@@ -19,6 +19,8 @@ func TestIterator(t *testing.T) {
 	t.Parallel()
 
 	stub := func(t *testing.T) (handle http.HandlerFunc, add func(path string, v any)) {
+		t.Helper()
+
 		m := make(map[string]any)
 
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -53,12 +55,12 @@ func TestIterator(t *testing.T) {
 				c          = pokeapi.NewClient(
 					&pokeapi.ClientOpts{HTTPClient: ts.Client(), PokeAPIRoot: ts.URL},
 				)
-				i = iterator.New(ctx, c, pokeapi.PokemonResource)
+				i = iterator.New(c, pokeapi.PokemonResource)
 			)
 			t.Cleanup(ts.Close)
 			t.Cleanup(i.Stop)
 
-			v, err := i.Next()
+			v, err := i.Next(ctx)
 			if !errors.Is(err, pokeapi.ErrListExhausted) || v != nil {
 				t.Errorf("want (nil, ErrListExhausted); got (%v, %v)", v, err)
 			}
@@ -80,12 +82,12 @@ func TestIterator(t *testing.T) {
 					),
 				)
 				c = pokeapi.NewClient(&pokeapi.ClientOpts{HTTPClient: ts.Client(), PokeAPIRoot: ts.URL})
-				i = iterator.New(ctx, c, pokeapi.PokemonResource)
+				i = iterator.New(c, pokeapi.PokemonResource)
 			)
 			t.Cleanup(ts.Close)
 			t.Cleanup(i.Stop)
 
-			v, err := i.Next()
+			v, err := i.Next(ctx)
 			if !errors.Is(err, pokeapi.HTTPError{Code: http.StatusInternalServerError}) || v != nil {
 				t.Errorf("want (nil, ErrListExhausted); got (%v, %v)", v, err)
 			}
@@ -104,7 +106,7 @@ func TestIterator(t *testing.T) {
 				c            = pokeapi.NewClient(
 					&pokeapi.ClientOpts{HTTPClient: ts.Client(), PokeAPIRoot: ts.URL},
 				)
-				i = iterator.New(ctx, c, pokeapi.PokemonResource)
+				i = iterator.New(c, pokeapi.PokemonResource)
 			)
 			t.Cleanup(ts.Close)
 			t.Cleanup(i.Stop)
@@ -126,7 +128,7 @@ func TestIterator(t *testing.T) {
 				},
 			)
 
-			v, err := i.Next()
+			v, err := i.Next(ctx)
 			if !errors.Is(err, pokeapi.ErrNotFound) || v != nil {
 				t.Errorf(
 					"want get '/pokemon/missingno' to return (nil, ErrListExhausted); got (%v, %v)",
@@ -149,7 +151,7 @@ func TestIterator(t *testing.T) {
 				c            = pokeapi.NewClient(
 					&pokeapi.ClientOpts{HTTPClient: ts.Client(), PokeAPIRoot: ts.URL},
 				)
-				i = iterator.New(ctx, c, pokeapi.PokemonResource)
+				i = iterator.New(c, pokeapi.PokemonResource)
 			)
 			t.Cleanup(ts.Close)
 			t.Cleanup(i.Stop)
@@ -205,7 +207,7 @@ func TestIterator(t *testing.T) {
 				},
 			)
 
-			v, err := i.Next()
+			v, err := i.Next(ctx)
 			if v == nil || v.ID != 1 || err != nil {
 				t.Errorf(
 					"want get '/pokemon/1' to return (ID:1, nil); got (%v, %v)",
@@ -213,7 +215,7 @@ func TestIterator(t *testing.T) {
 				)
 			}
 
-			v, err = i.Next()
+			v, err = i.Next(ctx)
 			if v == nil || v.ID != 2 || err != nil {
 				t.Errorf(
 					"want get '/pokemon/2' to return (ID:2, nil); got (%v, %v)",
@@ -221,7 +223,7 @@ func TestIterator(t *testing.T) {
 				)
 			}
 
-			v, err = i.Next()
+			v, err = i.Next(ctx)
 			if !errors.Is(err, pokeapi.ErrListExhausted) || v != nil {
 				t.Errorf("want list to be exhausted; got (%v, %v)", v, err)
 			}
@@ -240,7 +242,7 @@ func TestIterator(t *testing.T) {
 				c            = pokeapi.NewClient(
 					&pokeapi.ClientOpts{HTTPClient: ts.Client(), PokeAPIRoot: ts.URL},
 				)
-				i = iterator.New(ctx, c, pokeapi.PokemonResource)
+				i = iterator.New(c, pokeapi.PokemonResource)
 			)
 			t.Cleanup(ts.Close)
 
@@ -276,7 +278,7 @@ func TestIterator(t *testing.T) {
 				},
 			)
 
-			v, err := i.Next()
+			v, err := i.Next(ctx)
 			if v == nil || v.ID != 1 || err != nil {
 				t.Errorf(
 					"want get '/pokemon/1' to return (ID:1, nil); got (%v, %v)",
@@ -286,7 +288,7 @@ func TestIterator(t *testing.T) {
 
 			i.Stop()
 
-			v, err = i.Next()
+			v, err = i.Next(ctx)
 			if !errors.Is(err, pokeapi.ErrListExhausted) || v != nil {
 				t.Errorf("want (nil, ErrListExhausted); got (%v, %v)", v, err)
 			}

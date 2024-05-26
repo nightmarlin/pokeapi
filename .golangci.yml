@@ -1,0 +1,25 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly # Fail if go.mod must be updated
+issues:
+  max-same-issues: 0 # Disable limit for faster dev cycle
+  max-issues-per-linter: 0
+linters:
+  enable:
+    - bodyclose
+    - containedctx
+    - goimports
+    - nilnil
+    - noctx
+    - nolintlint
+    - paralleltest
+    - tenv
+    - thelper
+    - usestdlibvars
+    - unconvert
+linters-settings:
+  revive:
+    rules:
+      - name: time-equal
+        severity: error
+        disabled: false

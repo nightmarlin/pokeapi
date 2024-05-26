@@ -18,7 +18,7 @@ func ExampleIterator() {
 		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 		c           = pokeapi.NewClient(&pokeapi.ClientOpts{Cache: cache.NewLRU(nil)})
 
-		dexIter  = iterator.New(ctx, c, pokeapi.PokedexResource)
+		dexIter  = iterator.New(c, pokeapi.PokedexResource)
 		dexCount = 0
 	)
 	defer cancel()
@@ -27,7 +27,7 @@ func ExampleIterator() {
 	fmt.Println("let's learn about pokedexes...")
 
 	for {
-		dex, err := dexIter.Next()
+		dex, err := dexIter.Next(ctx)
 		if err != nil {
 			if errors.Is(err, pokeapi.ErrListExhausted) {
 				break

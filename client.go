@@ -24,7 +24,7 @@ const DefaultPokeAPIRoot = `https://pokeapi.co/api/v2`
 // otherwise stated) & return one instance of that resource.
 //
 // All methods of the form `List*` will return the first Page of results, and
-// accept an optional ListOptions parameter to permit you to start iteration
+// accept an optional ListOpts parameter to permit you to start iteration
 // wherever you like. This parameter may always be nil to start iteration from
 // the beginning.
 //
@@ -37,7 +37,7 @@ type Client struct {
 }
 
 type ClientOpts struct {
-	HTTPClient  *http.Client // Set the HTTP client to use when making lookups.
+	HTTPClient  *http.Client // Set the HTTP client to use when making lookups. Can be used to add tracing.
 	Cache       Cache        // Provide a Cache for use in lookups.
 	PokeAPIRoot string       // Change the base PokéAPI URL to make lookups to.
 }
@@ -65,11 +65,9 @@ func NewClient(opts *ClientOpts) *Client {
 		if opts.HTTPClient != nil {
 			c.client = opts.HTTPClient
 		}
-
 		if opts.Cache != nil {
 			c.cache = opts.Cache
 		}
-
 		if opts.PokeAPIRoot != "" {
 			c.pokeAPIRoot = trimSlash(opts.PokeAPIRoot)
 		}
@@ -102,17 +100,9 @@ func (rn ResourceName[R, T]) Get(ctx context.Context, c *Client, ident string) (
 func (rn ResourceName[R, T]) List(
 	ctx context.Context,
 	c *Client,
-	opts *ListOptions,
+	opts *ListOpts,
 ) (*Page[R, T], error) {
-	p, err := do[*Page[R, T]](ctx, c, c.listURL(rn), opts.urlValues())
-	switch {
-	case errors.Is(err, ErrNotFound):
-		return nil, ErrListExhausted
-	case err != nil:
-		return nil, err
-	default:
-		return p, nil
-	}
+	return doPage[R, T](ctx, c, c.listURL(rn), opts)
 }
 
 func trimSlash[S ~string](s S) string { return strings.Trim(string(s), "/") }
@@ -125,8 +115,8 @@ type resourceStringer interface {
 func (c *Client) listURL(resource resourceStringer) string {
 	return fmt.Sprintf("%s/%s/", c.pokeAPIRoot, trimSlash(resource.String()))
 }
-func (c *Client) getURL(resource resourceStringer, name string) string {
-	return fmt.Sprintf("%s/%s/%s/", c.pokeAPIRoot, trimSlash(resource.String()), trimSlash(name))
+func (c *Client) getURL(resource resourceStringer, ident string) string {
+	return fmt.Sprintf("%s/%s/%s/", c.pokeAPIRoot, trimSlash(resource.String()), trimSlash(ident))
 }
 
 // An Identifier is embedded into all retrievable resources. It makes it easy to
@@ -148,8 +138,8 @@ type APIResource[T any] struct {
 }
 
 // Get uses the passed Client to retrieve the full details of the given APIResource.
-func (r APIResource[T]) Get(ctx context.Context, client *Client) (*T, error) {
-	return do[*T](ctx, client, r.URL, nil)
+func (r APIResource[T]) Get(ctx context.Context, c *Client) (*T, error) {
+	return do[*T](ctx, c, r.URL, nil)
 }
 
 // A NamedIdentifier is embedded into resources that are named.
@@ -169,16 +159,16 @@ type NamedAPIResource[T any] struct {
 	Name string `json:"name"`
 }
 
-// ListOptions are available on all List* endpoints, allowing you to set up your
-// own pagination start point.
-type ListOptions struct {
-	Limit  int
-	Offset int
+// ListOpts are available on all List* endpoints, allowing you to set up your
+// own pagination start point. Pagination will continue using the provided
+// Limit for every page.
+type ListOpts struct {
+	Limit, Offset int
 }
 
-// urlValues converts the ListOptions to its corresponding url.Values. It is
-// safe to call on nil ListOptions.
-func (lo *ListOptions) urlValues() url.Values {
+// urlValues converts the ListOpts to its corresponding url.Values. It is
+// safe to call on nil ListOpts.
+func (lo *ListOpts) urlValues() url.Values {
 	if lo == nil {
 		return nil
 	}
@@ -203,6 +193,14 @@ type GettableAPIResource[T any] interface {
 // A Page represents a list of APIResource s or NamedAPIResource s. It also
 // includes information on the total number of resources in the result set, and
 // how to view the Next & Previous Page s.
+//
+// If a page is requested that does not exist, ErrListExhausted is returned.
+// PokéAPI does not distinguish between "resource not found" and "no items at
+// page index", so this is a design decision taken to optimise the common case
+// (as all Resources exported by this package are guaranteed to be able to be
+// List-ed)
+//
+//	client.ListBerries(ctx, &pokeapi.ListOpts{Offset: 1000}) => ErrListExhausted
 type Page[R GettableAPIResource[T], T any] struct {
 	Count    int     `json:"count"`    // The total number of resources available from this API.
 	Next     *string `json:"next"`     // The URL for the next page in the list.
@@ -212,49 +210,28 @@ type Page[R GettableAPIResource[T], T any] struct {
 
 // GetNext retrieves the Page at Page.Next. If there is no next page,
 // ErrListExhausted is returned.
-func (p *Page[R, T]) GetNext(ctx context.Context, client *Client) (*Page[R, T], error) {
+func (p *Page[R, T]) GetNext(ctx context.Context, c *Client) (*Page[R, T], error) {
 	if p.Next == nil {
 		return nil, ErrListExhausted
 	}
-
-	next, err := do[*Page[R, T]](ctx, client, *p.Next, nil)
-	switch {
-	case errors.Is(err, ErrNotFound):
-		return nil, ErrListExhausted
-	case err != nil:
-		return nil, err
-	default:
-		return next, nil
-	}
+	return doPage[R, T](ctx, c, *p.Next, nil)
 }
 
 // GetPrevious retrieves the Page at Page.Previous. If there is no previous
 // page, ErrListExhausted is returned.
-func (p *Page[R, T]) GetPrevious(ctx context.Context, client *Client) (*Page[R, T], error) {
+func (p *Page[R, T]) GetPrevious(ctx context.Context, c *Client) (*Page[R, T], error) {
 	if p.Previous == nil {
 		return nil, ErrListExhausted
 	}
 
-	prev, err := do[*Page[R, T]](ctx, client, *p.Previous, nil)
-	switch {
-	case errors.Is(err, ErrNotFound):
-		return nil, ErrListExhausted
-	case err != nil:
-		return nil, err
-	default:
-		return prev, nil
-	}
+	return doPage[R, T](ctx, c, *p.Previous, nil)
 }
 
 // The noCache is the default Cache implementation used by a Client. While it is
 // valid for use, it does not perform any actual caching.
 type noCache struct{}
 
-func (noCache) Lookup(
-	ctx context.Context,
-	_ string,
-	loader CacheLoader,
-) (any, error) {
+func (noCache) Lookup(ctx context.Context, _ string, loader CacheLoader) (any, error) {
 	return loader(ctx)
 }
 
@@ -263,12 +240,12 @@ func zero[T any]() (z T) { return }
 
 // do performs a type-safe http GET operation, using the Client's cache &
 // http.Client.
-func do[T any](ctx context.Context, c *Client, path string, values url.Values) (T, error) {
+func do[T any](ctx context.Context, c *Client, url string, values url.Values) (T, error) {
 	res, err := c.cache.Lookup(
 		ctx,
-		path,
+		url,
 		func(ctx context.Context) (any, error) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			if err != nil {
 				return nil, fmt.Errorf("creating request: %w", err)
 			}
@@ -303,4 +280,24 @@ func do[T any](ctx context.Context, c *Client, path string, values url.Values) (
 		return zero[T](), err
 	}
 	return res.(T), nil
+}
+
+// doPage calls do to get the requested Page, and then performs the common error
+// check - ErrNotFound for a Page get returns ErrListExhausted (set of resources
+// is empty).
+func doPage[R GettableAPIResource[T], T any](
+	ctx context.Context,
+	c *Client,
+	url string,
+	opts *ListOpts,
+) (*Page[R, T], error) {
+	p, err := do[*Page[R, T]](ctx, c, url, opts.urlValues())
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return nil, ErrListExhausted
+	case err != nil:
+		return nil, err
+	default:
+		return p, nil
+	}
 }
